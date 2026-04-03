@@ -84,7 +84,7 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
 ```
 ./
 ├── KB.md                          # KB metadata (subject, scope, compile stats)
-├── .atlas/                        # Internal machinery (gitignored)
+├── .atlas/                        # Internal machinery (gitignored, regenerable via compile)
 │   ├── hashes.json                # SHA-256 per raw file — incremental compile change detection
 │   ├── concepts.json              # Slug/name/alias registry — dedup, alias search, compile coordination
 │   └── splits/                    # Temp working copies when large files get split for compile

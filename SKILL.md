@@ -175,7 +175,7 @@ Output:
 ## Knowledge Base Initialized: [Subject]
 
 Directory: [path]
-Structure: .atlas/ (hashes, concepts, splits), raw/ (5 subdirectories), wiki/ (5 subdirectories)
+Structure: .atlas/ (hashes, concepts, splits), raw/ (6 subdirectories), wiki/ (8 subdirectories)
 
 Next steps:
 1. Add raw material to `raw/` (articles, papers, notes, images)
@@ -225,7 +225,7 @@ date_ingested: [today]
 2. **Dedup check:** If the file is already inside `raw/`, note it and stop. If not, derive the target filename and check if a file with that name already exists in the target `raw/` subdirectory. If it does, warn the user and ask how to proceed.
 3. If the file is elsewhere: read it and write a copy to the appropriate `raw/` subdirectory:
    - `.md` files go to `raw/articles/`
-   - `.pdf` files go to `raw/papers/`
+   - `.pdf` files go to `raw/papers/`. After copying, extract text content using the Read tool (which supports PDFs with the `pages` parameter — read in batches of 20 pages). Write extracted text to a companion file at `raw/papers/[name]-extracted.md` with frontmatter noting the original PDF path and page count. During compile, agents read the extracted `.md` file, not the PDF binary.
    - `.py`, `.js`, `.ts` and other code files go to `raw/repos/`
    - `.csv`, `.parquet`, `.jsonl`, `.xlsx` go to `raw/datasets/`. After copying, extract a brief schema summary (column names, row count, first 3 rows for CSV/JSONL) and prepend it as a markdown comment at the top of a companion `.md` file: `raw/datasets/[name]-schema.md`. This schema file is what agents read during compile (they can't parse raw data formats directly).
    - `.png`, `.jpg`, `.svg` and other image files go to `raw/images/`
@@ -280,14 +280,14 @@ Wiki last compiled: [date from KB.md]
 
 **For `--incremental` (hash-based change detection):**
 - Read `.atlas/hashes.json` for stored hashes
-- Compute current hashes for ALL raw files in a single Bash call: `find [KB root]/raw -type f -exec shasum -a 256 {} +`. Parse the output into a hash map.
+- Compute current hashes for ALL raw files: use Glob to get all file paths in `raw/` recursively, then pass the file list to a single Bash `shasum -a 256 [file1] [file2] ...` command. Parse the output into a hash map.
 - Compare against stored hashes. Include a file in the compile list ONLY if: (a) it has no stored hash (new file), or (b) its current hash differs from the stored hash (modified file).
 - If no files qualify: tell user "Wiki is up to date. No new or changed raw material since last compile on [date]." and STOP.
 - Proceed with only the changed file list.
 
 **Detect manual drops (both modes):**
 After building the file list, check each raw file for frontmatter (Grep for `^---` in the first 5 lines). Files without frontmatter were likely dropped manually (via Obsidian Web Clipper, file explorer, etc.). For each:
-- Create minimal frontmatter from what's available: `title` from filename (dehyphenate, title-case), `date_ingested` from file modification date (via Bash `stat -f %Sm` on macOS), `source: unknown (manual drop)`.
+- Create minimal frontmatter from what's available: `title` from filename (dehyphenate, title-case), `date_ingested` from file modification date (via Bash `date -r [file] +%Y-%m-%d`), `source: unknown (manual drop)`.
 - Prepend the frontmatter to the file using Edit.
 - Add the file to `.atlas/hashes.json` with its current hash.
 - Log to output: "Detected [N] manually added files without metadata. Added minimal frontmatter."
@@ -297,7 +297,9 @@ After building the file list, check each raw file for frontmatter (Grep for `^--
 
 ### Phase 2: Large Source Detection
 
-For each raw source in the file list, check line count via Bash (`wc -l`).
+Filter the file list to text-based formats only (`.md`, `.txt`, `.py`, `.js`, `.ts`, `.csv`, `.jsonl`) before checking line counts. Skip binary files (PDFs, images, parquet) from the splitting logic — their companion `.md` files will be in the list if they were ingested correctly.
+
+For each text-based raw source in the file list, check line count via Bash (`wc -l`).
 
 If any single source exceeds 1000 lines:
 1. Read ONLY the file's structure in main context: first 50 lines (for title and table of contents) and Grep for heading patterns (`^## `, `^### `, `^# `) to identify section boundaries.
@@ -339,6 +341,8 @@ Handle directly without agents. The context cost is minimal:
 6. Proceed to Phase 4.
 
 ### Standard Compile Path
+
+**Full compile cleanup:** If this is a full compile (not incremental), delete all files in `wiki/concepts/`, `wiki/summaries/`, and `wiki/indexes/` before launching agents. Reset `.atlas/concepts.json` to `{}`. Preserve `wiki/reports/`, `wiki/lint/`, `wiki/slides/`, `wiki/images/`, and `wiki/INDEX.md`. This prevents stale pages from sources that were removed since the last compile.
 
 **IMPORTANT: Context Window Protection.** Never read raw source files in the main conversation context. ALL reading and processing of raw sources happens inside subagents. The main context only manages agent orchestration and receives structured summaries in return.
 
@@ -409,6 +413,7 @@ RULES:
 ```
 You are creating source summaries for a knowledge base wiki.
 
+Subject: [from KB.md]
 Compile mode: [full | incremental]
 KB root: [path]
 
@@ -512,8 +517,10 @@ RULES:
 
 When total source lines exceed 8000:
 
+**Pre-batch cleanup (full compile only):** Before launching any batch, delete all files in `wiki/concepts/`, `wiki/summaries/`, and `wiki/indexes/`. Reset `.atlas/concepts.json` to `{}`. Preserve `wiki/reports/`, `wiki/lint/`, `wiki/slides/`, `wiki/images/`, and `wiki/INDEX.md`. This gives batch 1 a clean slate.
+
 1. Split the file list into batches of ~10 sources. Group files from the same `raw/` subdirectory together when possible.
-2. For **each batch**: run Agent 1 (incremental mode: reads existing concept pages and concepts.json before writing). Then run Agent 2 (reads existing summaries and concepts.json for linking).
+2. For **each batch**: run Agent 1 with compile mode **INCREMENTAL** (even during a full compile — the pre-batch cleanup already wiped old pages, so incremental mode correctly merges into the growing wiki). Then run Agent 2 (reads existing summaries and concepts.json for linking).
 3. **Skip Agent 3 until all batches are done.** Running the index builder per-batch is wasted work since the next batch changes the wiki again.
 4. After ALL batches complete, run Agent 3 ONCE to build the final index.
 
@@ -536,14 +543,14 @@ After all agents finish:
    - Increment `compile_count`
    - Increment `compiles_since_lint`
 
-2. Update `.atlas/hashes.json`: for incremental compiles, merge the current hash map from Phase 1 (which already has all hashes) into the stored file. For full compiles, replace the entire file with the current hash map. This avoids recomputing hashes that were already computed in Phase 1.
+2. Update `.atlas/hashes.json`: for incremental compiles, merge the current hash map from Phase 1 (which already has all hashes) into the stored file. For full compiles, replace the entire file with the current hash map. This avoids recomputing hashes that were already computed in Phase 1. After merge or replace, remove any entries whose files no longer exist in `raw/` (pruning deleted sources).
 
 ### Phase 6: Git Commit
 
 Check if the KB root is inside a git repository via Bash: `git -C [KB root] rev-parse --is-inside-work-tree 2>/dev/null`
 
 If yes:
-1. Stage wiki changes: `git -C [KB root] add wiki/ .atlas/ KB.md`
+1. Stage wiki changes: `git -C [KB root] add wiki/ KB.md`
 2. Commit: `git -C [KB root] commit -m "atlas: [full|incremental] compile - [N] concepts, [M] summaries"`
 3. If the commit fails (nothing to commit, hook failure, etc.), warn the user but do not treat it as a compile failure.
 
@@ -632,7 +639,7 @@ If the user says yes:
 4. Create/update concept pages accordingly
 5. Update `.atlas/concepts.json` with any new concepts
 6. Update INDEX.md
-7. Git commit if in a repo: `git -C [KB root] add wiki/ && git -C [KB root] commit -m "atlas: query filed - [slug]"`
+7. Git commit if in a repo: `git -C [KB root] add wiki/ KB.md && git -C [KB root] commit -m "atlas: query filed - [slug]"`
 8. Confirm what was updated
 
 ---
@@ -830,7 +837,7 @@ If the user says yes:
 4. Remove ghost entries from INDEX.md
 5. Sync `.atlas/concepts.json` with actual concept files (add missing entries, remove entries with no file)
 6. Update `KB.md`: set `last_linted` to today, reset `compiles_since_lint` to 0
-7. Git commit if in a repo: `git -C [KB root] add wiki/ .atlas/ KB.md` then `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`
+7. Git commit if in a repo: `git -C [KB root] add wiki/ KB.md` then `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`
 
 If the user says no:
 1. Update `KB.md`: set `last_linted` to today, reset `compiles_since_lint` to 0 (lint was run, even if fixes were declined)
@@ -1053,7 +1060,7 @@ No agents needed. Quick full-text lookup with alias expansion.
 ## Rules for All Commands
 
 1. **Always run Phase 0** (auto-detect KB) before any command except `init`.
-2. **Raw is append-only.** Never delete, modify, or overwrite files in `raw/`. The raw directory is the ground truth.
+2. **Raw is append-only.** Never delete, modify, or overwrite files in `raw/`. The raw directory is the ground truth. Exception: one-time metadata frontmatter additions on files detected as manual drops (no existing frontmatter).
 3. **Wiki is the LLM's domain.** The user reads wiki files but should rarely edit them directly. If the user has manually edited a wiki file, respect their changes during subsequent compiles. Merge, don't overwrite.
 4. **Relative links only.** All links in wiki files must use relative paths (`../concepts/foo.md`, not absolute paths). This makes the KB portable across machines.
 5. **Explicit file lists for agents.** When spawning agents, always include the complete list of files they need to process. Do not make agents discover files. Give them the list.
