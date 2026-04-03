@@ -63,9 +63,9 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
 │   └── notes/                     # Everything else
 └── wiki/                          # Compiled output — the part you read
     ├── INDEX.md                   # Entry point. Lists categories, links to sub-indexes. Under 60 lines.
-    ├── indexes/                   # One file per category. Alphabetical concept lists with one-line summaries.
-    ├── concepts/                  # One file per concept. Explanations, key points, cross-links, sources.
-    ├── summaries/                 # One file per raw source. What it covers, which concepts it fed.
+    ├── indexes/                   # Navigation — answers "what concepts exist in category Y?"
+    ├── concepts/                  # Knowledge — answers "what is X?" One file per concept.
+    ├── summaries/                 # Provenance — answers "what did source Z contribute?"
     ├── reports/                   # Query answers and exported reports.
     ├── slides/                    # Marp slide decks from export.
     └── images/                    # Charts and downloaded images.
@@ -77,6 +77,18 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
 
 ## Commands
 
-See SKILL.md for full operational details. Quick reference:
+See SKILL.md for full operational details.
 
-`/atlas init`, `/atlas ingest`, `/atlas compile`, `/atlas query`, `/atlas search`, `/atlas lint`, `/atlas status`, `/atlas export`
+| Command | What it does | Reads | Creates / Updates |
+|---------|-------------|-------|-------------------|
+| `init <subject>` | Scaffold a new KB | nothing | `KB.md`, `.atlas/*`, `raw/` dirs, `wiki/INDEX.md` |
+| `ingest <source>` | Add a file, URL, or directory to raw | source file/URL | `raw/[type]/`, `.atlas/hashes.json`, `KB.md` |
+| `compile` | Full rebuild of wiki from all raw material | `raw/*`, `.atlas/*` | `wiki/concepts/`, `wiki/summaries/`, `wiki/indexes/`, `wiki/INDEX.md`, `.atlas/concepts.json`, `KB.md` |
+| `compile --incremental` | Rebuild only new/changed sources | `raw/*`, `.atlas/hashes.json` | same as compile, only changed files |
+| `query "question"` | Research answer from wiki | `wiki/INDEX.md`, `wiki/indexes/`, `wiki/concepts/` | `wiki/reports/` |
+| `search "term"` | Full-text search with alias expansion | `.atlas/concepts.json`, `wiki/concepts/`, `wiki/reports/` | nothing (display only) |
+| `lint` | Health check and hallucination audit | all `wiki/` files, `raw/`, `.atlas/concepts.json` | fixes if approved, `KB.md` |
+| `status` | Quick stats | `KB.md`, `.atlas/*`, `wiki/INDEX.md` | nothing (display only) |
+| `export --slides "topic"` | Marp slide deck | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/slides/` |
+| `export --report "topic"` | Long-form report | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/reports/` |
+| `export --chart "desc"` | matplotlib visualization | `wiki/concepts/` | `wiki/images/` |
