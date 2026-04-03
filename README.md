@@ -37,6 +37,10 @@ Mentor decides WHAT belongs. Atlas does the WORK of organizing it. Atlas lint ch
 - **No source evaluation.** Atlas ingests everything you give it. Use `/mentor evaluate` to decide what's worth adding.
 - **Obsidian recommended.** Atlas generates standard markdown viewable anywhere. Obsidian adds backlinks, graph views, and Marp slide support on top.
 
+## Pairing with a Mentor Skill
+
+Atlas is domain-agnostic. The optional mentor skill adds opinionated curation: filtering what's worth ingesting, auditing against job market demands, and testing your understanding. Atlas works standalone. Mentor makes it smarter about what goes in. See the mentor skill's README for how to adapt it to any domain.
+
 ## Commands
 
 See SKILL.md for full operational details. Quick reference:
