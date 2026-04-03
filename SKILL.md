@@ -90,6 +90,7 @@ Parse $ARGUMENTS to determine command:
 │   ├── concepts/
 │   ├── summaries/
 │   ├── reports/
+│   ├── lint/
 │   ├── slides/
 │   └── images/
 ```
@@ -737,42 +738,42 @@ SCOPE:
 Do NOT verify opinions, synthesis, or the concept page's summary paragraph (those are the LLM's legitimate synthesis). Only verify claims attributed to a specific source.
 ```
 
-### Phase 2: Consolidate
+### Phase 2: Consolidate and Save
 
-After all three agents return, merge their findings:
+After all three agents return, merge their findings into a report. Write the report to `wiki/lint/lint-YYYY-MM-DD.md` (create `wiki/lint/` if it doesn't exist) AND display it in the terminal.
 
-```
-## Atlas Lint Report
+If a lint report with the same date already exists, overwrite it (re-running lint on the same day replaces the previous run).
 
-### Knowledge Base: [Subject]
-### Stats: [N] concepts | [N] sources | [N] reports | Last compiled: [date]
+```markdown
+# Lint Report - [YYYY-MM-DD]
+
+## Knowledge Base: [Subject]
+Stats: [N] concepts | [N] sources | [N] reports | Last compiled: [date]
+
+## Overall Health: [HEALTHY | NEEDS ATTENTION | DEGRADED]
+
+HEALTHY: 0 critical issues, fewer than 3 important issues, 0 unsupported claims
+NEEDS ATTENTION: 1-3 critical issues, or more than 5 important issues, or 1-2 unsupported claims
+DEGRADED: 4+ critical issues, or contradictions found, or 3+ unsupported claims, or more than 20% of pages are orphaned/thin
 
 ---
 
-### Critical Issues
+## Issues
+
+### Critical
 [Broken links, contradictions, ghost entries. Things that break navigation or mislead]
 
-### Important Issues
+### Important
 [Orphan pages, terminology drift, thin pages, source attribution gaps, registry drift]
 
-### Minor Issues
+### Minor
 [Backlink asymmetry, stale summaries, formatting inconsistencies]
 
 ---
 
-### Suggested New Connections
-[From Agent 2: concept pairs that should link to each other, with reasoning]
+## Source Verification
 
-### New Article Candidates
-[From Agent 2: topics that deserve their own concept page]
-
-### Questions Worth Exploring
-[From Agent 2: 5 research questions to deepen the wiki]
-
----
-
-### Source Verification (Hallucination Audit)
-[From Agent 3: Claims checked: [N]. Supported: [N]. Partially supported: [N]. Unsupported: [N]. Missing sources: [N]. Uncited pages: [N].]
+Claims checked: [N]. Supported: [N]. Partially supported: [N]. Unsupported: [N]. Missing sources: [N]. Uncited pages: [N].
 
 [For each UNSUPPORTED or PARTIALLY SUPPORTED claim:]
 - **[concept-page.md]**: "[the claim]" cites [source-file.md]
@@ -781,11 +782,41 @@ After all three agents return, merge their findings:
 
 ---
 
-### Overall Health: [HEALTHY | NEEDS ATTENTION | DEGRADED]
+## Suggested Connections
 
-HEALTHY: 0 critical issues, fewer than 3 important issues, 0 unsupported claims
-NEEDS ATTENTION: 1-3 critical issues, or more than 5 important issues, or 1-2 unsupported claims
-DEGRADED: 4+ critical issues, or contradictions found, or 3+ unsupported claims, or more than 20% of pages are orphaned/thin
+[From Agent 2: concept pairs that should link to each other, with reasoning. Checkbox format:]
+- [ ] **[Concept A] <-> [Concept B]** -- [why these should link]
+- [ ] ...
+
+---
+
+## New Article Candidates
+
+[From Agent 2. Each candidate includes a ready-to-run mentor command with --context paths pointing to the wiki pages that reference the topic:]
+
+### [Candidate Topic]
+Referenced by [N] pages: [list page names]
+
+To evaluate whether this deserves a standalone page:
+`/mentor evaluate "[topic]" --context [wiki/concepts/page1.md] [wiki/concepts/page2.md] ...`
+
+### [Next Candidate]
+...
+
+---
+
+## Research Questions
+
+[From Agent 2. Each question includes a ready-to-run atlas query command:]
+
+### [Question text]
+Relevant pages: [list with paths]
+Gap: [what's missing]
+
+To explore: `/atlas query "[question text]"`
+
+### [Next Question]
+...
 ```
 
 ### Phase 3: Auto-Fix and Git Commit
@@ -803,6 +834,8 @@ If the user says yes:
 
 If the user says no:
 1. Update `KB.md`: set `last_linted` to today, reset `compiles_since_lint` to 0 (lint was run, even if fixes were declined)
+
+In both cases, the lint report at `wiki/lint/lint-YYYY-MM-DD.md` is already saved and will be included in the git commit.
 
 ---
 

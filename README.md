@@ -34,6 +34,40 @@ Atlas organizes knowledge. It does not judge whether a source is worth including
 
 Mentor decides WHAT belongs. Atlas does the WORK of organizing it. Atlas lint checks internal consistency and source accuracy. Mentor audit checks external alignment with the job market.
 
+## What to Expect
+
+**Image handling.** When you ingest a URL, Atlas downloads significant images from the article and saves them to `raw/images/`. Decorative images (logos, avatars, icons, tracking pixels, anything under 5KB) are skipped. Markdown image references in the saved article are rewritten to point to the local copies. During compile, image references carry through into concept pages automatically. If a download fails, the original remote URL is kept.
+
+**Dataset ingestion.** When you ingest a `.csv`, `.parquet`, `.jsonl`, or `.xlsx` file, Atlas saves it to `raw/datasets/` and creates a companion `-schema.md` file with column names, row count, and the first 3 rows. Compile agents read the schema file, not the raw data (they cannot parse binary formats directly).
+
+**Duplicate detection.** Before adding a new raw source, Atlas checks if the same URL or filename already exists in `raw/`. If it finds a match, it asks whether to update, duplicate, or skip.
+
+**Manual drops.** You can place files directly into `raw/` (via Obsidian Web Clipper, file explorer, drag-and-drop). During compile, Atlas detects files without frontmatter, adds minimal metadata (title from filename, date from file timestamp, source marked as "manual drop"), and includes them in the compile.
+
+**Query filing.** After answering a query, Atlas offers to extract new concepts from the answer back into the wiki. Accepting this creates or updates concept pages, enriching future queries.
+
+**Lint health scores.** Lint produces a health rating: HEALTHY (0 critical issues, under 3 important, 0 unsupported claims), NEEDS ATTENTION (1-3 critical or 5+ important), or DEGRADED (4+ critical, contradictions, or 3+ unsupported claims from the hallucination audit).
+
+**Web search quarantine.** If a query requires web search, Atlas always asks first. Web results are saved to `raw/` and compiled through the normal pipeline. They are never injected directly into wiki pages.
+
+## Lint-Driven Improvement
+
+Running `/atlas lint` produces a health report saved to `wiki/lint/lint-YYYY-MM-DD.md`. The report identifies issues, suggests improvements, and includes ready-to-run commands for follow-up. Nothing is lost between sessions.
+
+The lint report has five sections, each with a different follow-up path:
+
+| Lint Section | What it finds | How to act on it |
+|-------------|--------------|-----------------|
+| **Issues** | Broken links, orphan pages, contradictions, registry drift | Accept auto-fix when prompted, or fix manually |
+| **Source Verification** | Claims that don't match the cited source (hallucination audit) | Edit the concept page to match what the source actually says |
+| **Suggested Connections** | Concept pairs that should cross-link but don't | Add links manually, or wait for next compile |
+| **New Article Candidates** | Topics referenced by many pages but with no page of their own | Run the `/mentor evaluate` command in the report (includes `--context` paths to relevant wiki pages) |
+| **Research Questions** | Gaps the wiki almost answers but doesn't fully cover | Run the `/atlas query` command in the report |
+
+The key design: atlas finds the gaps and prepares the commands. Mentor evaluates whether to fill them. Atlas organizes the result. The user decides what to pursue.
+
+Atlas works without mentor. Lint still saves reports and auto-fixes structural issues. The `/mentor evaluate` commands in the report are suggestions, not dependencies. If mentor isn't installed, chase the leads manually.
+
 ## Limitations
 
 - **No source evaluation.** Atlas ingests everything you give it. Use `/mentor evaluate` to decide what's worth adding.
@@ -67,6 +101,7 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
     ├── concepts/                  # Knowledge — answers "what is X?" One file per concept.
     ├── summaries/                 # Provenance — answers "what did source Z contribute?"
     ├── reports/                   # Query answers and exported reports.
+    ├── lint/                      # Saved lint reports with actionable follow-up commands.
     ├── slides/                    # Marp slide decks from export.
     └── images/                    # Charts and downloaded images.
 ```
@@ -87,7 +122,7 @@ See SKILL.md for full operational details.
 | `compile --incremental` | Rebuild only new/changed sources | `raw/*`, `.atlas/hashes.json` | same as compile, only changed files |
 | `query "question"` | Research answer from wiki | `wiki/INDEX.md`, `wiki/indexes/`, `wiki/concepts/` | `wiki/reports/` |
 | `search "term"` | Full-text search with alias expansion | `.atlas/concepts.json`, `wiki/concepts/`, `wiki/reports/` | nothing (display only) |
-| `lint` | Health check and hallucination audit | all `wiki/` files, `raw/`, `.atlas/concepts.json` | fixes if approved, `KB.md` |
+| `lint` | Health check and hallucination audit | all `wiki/` files, `raw/`, `.atlas/concepts.json` | `wiki/lint/lint-YYYY-MM-DD.md`, fixes if approved, `KB.md` |
 | `status` | Quick stats | `KB.md`, `.atlas/*`, `wiki/INDEX.md` | nothing (display only) |
 | `export --slides "topic"` | Marp slide deck | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/slides/` |
 | `export --report "topic"` | Long-form report | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/reports/` |
