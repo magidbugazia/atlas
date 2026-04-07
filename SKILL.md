@@ -668,9 +668,20 @@ If the user says yes:
 
 **Invocation:** `/atlas lint`
 
-### Phase 1: Spawn Agents
+### Phase 1: Compute Hub Concepts and Spawn Agents
 
-Launch 3 agents in PARALLEL:
+**Step A: Compute hub concepts (deterministic, runs in main context).**
+
+This step identifies which concept pages are "load-bearing" by counting how many other concept pages link to them. Hub concepts deserve extra maintenance attention because errors on hub pages ripple farther than errors on leaf pages.
+
+1. Glob `wiki/concepts/` for all `.md` files. Build the list of concept slugs (filename without `.md`).
+2. For each concept slug, count its inbound link count: how many OTHER concept pages link TO it. Use Grep across `wiki/concepts/` for the pattern `[slug].md` (matching links like `[Name](../concepts/[slug].md)` and `[Name]([slug].md)`). Exclude self-references (the page linking to itself in its own Sources or footer).
+3. Sort concepts by inbound link count, descending. Ties broken by alphabetical slug order.
+4. Take the top 5. If the wiki has fewer than 5 concepts, take all of them. Store the list (concept name, slug, inbound link count) for Phase 2 to render in the report.
+
+This step is fast: Glob + Grep across a few hundred small files takes well under a second. It does not need an agent.
+
+**Step B: Launch 3 agents in PARALLEL.**
 
 **Agent 1: Consistency Checker**
 ```
@@ -788,6 +799,22 @@ Stats: [N] concepts | [N] sources | [N] reports | Last compiled: [date]
 HEALTHY: 0 critical issues, fewer than 3 important issues, 0 unsupported claims
 NEEDS ATTENTION: 1-3 critical issues, or more than 5 important issues, or 1-2 unsupported claims
 DEGRADED: 4+ critical issues, or contradictions found, or 3+ unsupported claims, or more than 20% of pages are orphaned/thin
+
+---
+
+## Hub Concepts
+
+These pages have the most inbound links from other concept pages. Errors on hub concepts ripple farther than errors on leaf concepts. Prioritize maintenance work on these pages.
+
+| Rank | Concept | Inbound Links |
+|------|---------|---------------|
+| 1 | [Concept Name](../concepts/slug.md) | N |
+| 2 | [Concept Name](../concepts/slug.md) | N |
+| 3 | [Concept Name](../concepts/slug.md) | N |
+| 4 | [Concept Name](../concepts/slug.md) | N |
+| 5 | [Concept Name](../concepts/slug.md) | N |
+
+[If any hub concept has status: needs_update or has stale frontmatter, flag it inline next to the row.]
 
 ---
 
