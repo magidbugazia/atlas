@@ -410,6 +410,7 @@ Each concept page must contain (in this order):
 - One-paragraph summary (what this concept is and why it matters)
 - Detailed explanation synthesized from ALL sources that discuss this concept
 - Key points as a bulleted list, with attribution: "(Source: [filename])" after each point
+- "Counter-Arguments and Data Gaps" section: a `## Counter-Arguments and Data Gaps` heading followed by the strongest available critique of the page's synthesis. This section is MANDATORY on every concept page, even when all cited sources agree. If the sources agree, surface the most credible counter-position you can find: a known critique from the field, an unaddressed methodological limitation, an open empirical question, a missing data category, or the strongest opposing school of thought. Do NOT leave this section blank or write "no counter-arguments found". If you cannot find a critique, dig harder.
 - "Related Concepts" section with markdown links to other concept pages: [Concept Name](related-concept.md)
 - "Sources" section at the bottom listing which raw files contributed to this page
 
@@ -425,6 +426,7 @@ RULES:
 - Do not invent information. Only include what the raw sources actually say.
 - If a raw source is too garbled to extract meaningful concepts (bad OCR, corrupted text), skip it and include it in a "Skipped Sources" list at the end of your output with the reason.
 - For incremental compiles: read existing concept pages first. Merge new information into existing pages. Do not overwrite. Append and synthesize.
+- The Counter-Arguments and Data Gaps section is an epistemic integrity check distinct from source attribution. Even when every source praises the same approach, generate the strongest available critique. One-sided pages compound bias as the wiki grows: if you ingest 5 sources from the same camp, the page should still surface what the opposing camp would say. This protects the wiki from becoming an echo chamber.
 ```
 
 **Agent 2: Summary Writer**
