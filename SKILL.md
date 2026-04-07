@@ -421,6 +421,7 @@ Each concept page must contain (in this order):
 - "Counter-Arguments and Data Gaps" section: a `## Counter-Arguments and Data Gaps` heading followed by the strongest available critique of the page's synthesis. This section is MANDATORY on every concept page, even when all cited sources agree. If the sources agree, surface the most credible counter-position you can find: a known critique from the field, an unaddressed methodological limitation, an open empirical question, a missing data category, or the strongest opposing school of thought. Do NOT leave this section blank or write "no counter-arguments found". If you cannot find a critique, dig harder.
 - "Related Concepts" section with markdown links to other concept pages: [Concept Name](related-concept.md)
 - "Sources" section at the bottom listing which raw files contributed to this page
+- "Rationale Notes" section (OPTIONAL, only when raw sources contain rationale comments): a `## Rationale Notes` heading followed by verbatim quotes of `WHY:` / `HACK:` / `TODO:` / `FIXME:` / `NOTE:` comments extracted from the raw sources, each with attribution: `> [verbatim comment text]` followed by `(Source: [filename]:[line])`. Only include this section if at least one rationale comment was found across the cited sources. Do NOT paraphrase or summarize the comments; quote them exactly as written.
 
 RULES:
 - ONE file per concept, NOT per source. Three articles about "prompt engineering" become ONE prompt-engineering.md.
@@ -435,6 +436,7 @@ RULES:
 - If a raw source is too garbled to extract meaningful concepts (bad OCR, corrupted text), skip it and include it in a "Skipped Sources" list at the end of your output with the reason.
 - For incremental compiles: read existing concept pages first. Merge new information into existing pages. Do not overwrite. Append and synthesize.
 - The Counter-Arguments and Data Gaps section is an epistemic integrity check distinct from source attribution. Even when every source praises the same approach, generate the strongest available critique. One-sided pages compound bias as the wiki grows: if you ingest 5 sources from the same camp, the page should still surface what the opposing camp would say. This protects the wiki from becoming an echo chamber.
+- Rationale extraction: while reading each raw source file, scan for lines containing rationale tags. Tags to capture: `WHY:`, `HACK:`, `TODO:`, `FIXME:`, `NOTE:`. Tags may be preceded by comment markers (`#`, `//`, `/*`, `>`, `--`) and any amount of whitespace. Capture each match VERBATIM (do not paraphrase) along with the source filename and line number. Group captured rationales by the concept page they belong to (a rationale belongs to a concept page if the source file contributed to that concept). Render them in the optional `## Rationale Notes` section described above. Skip the section entirely if no rationale was found. Rationale is the first thing lost in summarization, so preserving the original wording is the point: do not interpret, do not collapse multiple rationales, just quote.
 ```
 
 **Agent 2: Summary Writer**
