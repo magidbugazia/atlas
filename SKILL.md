@@ -295,6 +295,23 @@ After building the file list, check each raw file for frontmatter (Grep for `^--
 **For full compile:**
 - Process ALL raw sources. Warn the user if this will process more than 20 files: "Full compile will process [N] raw sources. This may take a few minutes. Proceed?"
 
+### Phase 1.5: Frontmatter Backfill
+
+Before launching agents, ensure every existing wiki page has YAML frontmatter. This step is a one-time backfill that auto-completes itself the first time atlas compiles a KB after frontmatter became required. After the first run, this step is a fast no-op because every page already has frontmatter.
+
+1. Glob `wiki/concepts/` and `wiki/summaries/` for all `.md` files. If neither directory exists yet (brand-new KB), skip this phase entirely.
+2. For each file, check whether the first non-empty line is `---` (the YAML frontmatter fence). If yes, skip the file (already has frontmatter).
+3. For each file WITHOUT frontmatter:
+   - Read the file
+   - Extract the title from the first H1 heading. If no H1 exists, derive it from the filename slug (dehyphenate, title-case)
+   - Get the file's modification date via Bash: `date -r [file] +%Y-%m-%d`. Use this for both `created` and `last_updated`
+   - For concept pages (in `wiki/concepts/`): count entries in the `## Sources` section to derive `source_count`. If no Sources section exists, set `source_count: 0`. Set `status: needs_update` (the page predates frontmatter and should be reviewed by either the next compile pass or by lint)
+   - For summary pages (in `wiki/summaries/`): count entries in the `## Concepts Contributed To` section to derive `concept_count`. Set `status: needs_update`
+   - Build the YAML frontmatter block and prepend it to the file using Edit. Concept page schema: `title`, `created`, `last_updated`, `source_count`, `status`. Summary page schema: `title`, `created`, `last_updated`, `concept_count`, `status`
+4. Log to output: "Backfilled frontmatter on [N] concept pages and [M] summary pages." If both counts are 0, skip the log line.
+
+This backfill is idempotent. Pages that already have frontmatter are skipped. Pages added by older compiles get their frontmatter on the first run after this step exists; subsequent runs are no-ops. Backfilled pages are tagged `status: needs_update` so lint can surface them for human review.
+
 ### Phase 2: Large Source Detection
 
 Filter the file list to text-based formats only (`.md`, `.txt`, `.py`, `.js`, `.ts`, `.csv`, `.jsonl`) before checking line counts. Skip binary files (PDFs, images, parquet) from the splitting logic — their companion `.md` files will be in the list if they were ingested correctly.
@@ -332,10 +349,10 @@ Handle directly without agents. The context cost is minimal:
 2. For each concept in the new sources:
    - Check the concept registry for existing slugs or aliases matching this concept
    - Grep `wiki/concepts/` for existing pages about this concept
-   - If exists: Read the existing page. Edit it to incorporate new information from the new source. Add the new source to the "Sources" section at the bottom. Update cross-links.
-   - If not exists: Create a new concept page at `wiki/concepts/[concept-slug].md`
+   - If exists: Read the existing page. Edit it to incorporate new information from the new source. Add the new source to the "Sources" section at the bottom. Update cross-links. Update the YAML frontmatter: set `last_updated` to today, recompute `source_count` (count entries in the Sources section), leave `created` and `status` alone unless the new content contradicts existing claims (in which case bump status to needs_update).
+   - If not exists: Create a new concept page at `wiki/concepts/[concept-slug].md` starting with YAML frontmatter (title, created=today, last_updated=today, source_count, status=draft) followed by the standard concept page structure.
    - Update `.atlas/concepts.json` with any new concepts (slug, display name, 2-3 aliases)
-3. Create summary pages for new raw sources at `wiki/summaries/[source-slug].md`
+3. Create summary pages for new raw sources at `wiki/summaries/[source-slug].md` starting with YAML frontmatter (title, created=today, last_updated=today, concept_count, status=reviewed) followed by the standard summary page structure.
 4. Update the relevant sub-index in `wiki/indexes/` with new concept entries. If the new concepts don't fit an existing category, create a new sub-index.
 5. Update `wiki/INDEX.md` category summaries (update concept counts, add new categories if created).
 6. Proceed to Phase 4.
@@ -387,7 +404,8 @@ TASK:
 4. For each concept, create or update ONE wiki page at wiki/concepts/[concept-slug].md
 5. Update .atlas/concepts.json with all concepts (new and existing)
 
-Each concept page must contain:
+Each concept page must contain (in this order):
+- YAML frontmatter block at the very top, fenced by `---` lines. Required fields: `title` (display name), `created` (YYYY-MM-DD), `last_updated` (YYYY-MM-DD), `source_count` (integer count of distinct raw sources cited on this page), `status` (one of: draft, reviewed, needs_update). For new pages: created=today, last_updated=today, status=draft. For updates to existing pages: preserve created, set last_updated=today, recompute source_count, bump status to needs_update if the new content contradicts existing claims (otherwise leave status alone).
 - Title as H1
 - One-paragraph summary (what this concept is and why it matters)
 - Detailed explanation synthesized from ALL sources that discuss this concept
@@ -427,9 +445,9 @@ Also read .atlas/concepts.json for the canonical concept names and slugs.
 TASK:
 For each raw source, create a summary page at wiki/summaries/[source-slug].md
 
-Each summary page must contain:
+Each summary page must contain (in this order):
+- YAML frontmatter block at the very top, fenced by `---` lines. Required fields: `title` (source title), `created` (YYYY-MM-DD), `last_updated` (YYYY-MM-DD), `concept_count` (integer count of concept pages this source contributed to), `status` (one of: draft, reviewed, needs_update). Optional fields if known from the raw source's own frontmatter: `author`, `date_published`, `source_url`, `date_ingested`. For new pages: created=today, last_updated=today, status=reviewed. For updates: preserve created, set last_updated=today, recompute concept_count.
 - Title as H1
-- Frontmatter-style metadata block: author, date published, original URL (if applicable), date ingested
 - 3-5 sentence summary of what this source covers and its main argument
 - "Concepts Contributed To" section: bulleted list linking to actual concept pages in wiki/concepts/ using relative paths. Match concept names against .atlas/concepts.json aliases if the exact name doesn't match a filename.
 - "Key Quotes" section: 2-3 notable quotes worth preserving verbatim (with context for each)
@@ -682,6 +700,12 @@ COMPLETENESS:
 - Thin pages: concept pages with fewer than 100 words (likely stubs that need expansion)
 - Unsummarized sources: raw files in raw/ with no corresponding summary in wiki/summaries/
 - Source attribution gaps: concept pages with claims that don't cite any raw source
+
+FRONTMATTER HEALTH:
+- Missing frontmatter: any concept or summary page without a YAML frontmatter block at the top. Should auto-fix on next compile via Phase 1.5 backfill, but flag here so the user knows
+- Stale frontmatter: pages where `last_updated` is more than 90 days old. Report the page name, last_updated date, and current age in days
+- Pages flagged needs_update: list every page with `status: needs_update` and how long it has held that status. These need human attention
+- Source-count drift: pages where the `source_count` value in frontmatter does not match the actual number of entries in the Sources section
 
 For each issue report:
 - Severity: CRITICAL (broken navigation, contradictions) / IMPORTANT (orphans, terminology drift) / MINOR (backlink gaps, stale summaries)
