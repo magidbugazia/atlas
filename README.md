@@ -167,6 +167,29 @@ See SKILL.md for full operational details.
 | `export --report "topic"` | Long-form report | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/reports/` |
 | `export --chart "desc"` | matplotlib visualization | `wiki/concepts/` | `wiki/images/` |
 
+## Skill File Structure
+
+The skill uses a sub-indexed pattern to keep `SKILL.md` small. SKILL.md contains the dispatcher, Phase 0 (auto-detect knowledge base), Mode Detection, and Rules for All Commands. Per-command operational logic lives in separate reference files that get loaded on demand:
+
+```
+atlas/
+├── SKILL.md                          # Dispatcher (under 200 lines)
+├── README.md                         # This file
+├── atlas-guide.html                  # Standalone guide
+└── references/
+    └── commands/
+        ├── init.md                   # Create KB structure
+        ├── ingest.md                 # Add raw sources
+        ├── compile.md                # Build wiki (3 sequential agents)
+        ├── query.md                  # Hierarchical retrieval
+        ├── lint.md                   # Health check (3 parallel agents)
+        ├── status.md                 # Quick stats
+        ├── export.md                 # Slides, reports, charts
+        └── search.md                 # Alias-aware full-text search
+```
+
+When the user invokes a command, SKILL.md tells Claude to STOP and Read the corresponding file before proceeding. This keeps each invocation's context cost ~75% smaller than loading the full SKILL.md. A `/atlas status` call loads ~170 lines (SKILL.md) + ~45 lines (status.md) instead of the previous ~1160-line monolith.
+
 ## Deferred Work
 
 Things that have been considered, decided to defer, and parked here so they're not lost.
