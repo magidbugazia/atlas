@@ -77,6 +77,45 @@ Atlas works without mentor. Lint still saves reports and auto-fixes structural i
 
 Atlas is domain-agnostic. The optional mentor skill adds opinionated curation: filtering what's worth ingesting, auditing against job market demands, and testing your understanding. Atlas works standalone. Mentor makes it smarter about what goes in. See the mentor skill's README for how to adapt it to any domain.
 
+## Always-On Setup (Optional)
+
+By default, atlas only acts when you explicitly invoke `/atlas <command>`. If you want atlas to surface itself automatically whenever you grep or glob inside a KB directory, install the `PreToolUse` hook. With the hook installed, every time Claude is about to call Glob or Grep in a directory containing a `KB.md` (in cwd or up to 3 parent directories), Claude sees an injected notification telling it the KB exists and to consider `/atlas search` or `/atlas query` first. The hook never blocks; it only adds context.
+
+This turns atlas from "tool you have to remember to invoke" into an always-on context layer. Especially useful inside large KBs where grepping raw files would miss the synthesized concept pages atlas already built.
+
+### Installation
+
+The hook ships with atlas at `~/.claude/hooks/atlas-kb-context.py`. To enable it, add the following entry to the `PreToolUse` array in `~/.claude/settings.json`:
+
+```json
+{
+  "matcher": "Glob|Grep",
+  "hooks": [
+    {
+      "type": "command",
+      "command": "python3 ~/.claude/hooks/atlas-kb-context.py"
+    }
+  ]
+}
+```
+
+Place this entry alongside any other `PreToolUse` hooks you already have. Restart your Claude Code session for the new hook to take effect.
+
+### How it works
+
+The hook reads the session's working directory from stdin, walks up at most 3 parent directories looking for `KB.md`, and if found:
+
+1. Extracts the KB's `subject` from the KB.md frontmatter (best effort)
+2. Builds a context message naming the KB, pointing at `wiki/INDEX.md`, and suggesting `/atlas search` or `/atlas query` as alternatives to raw grep
+3. Outputs the message via the `hookSpecificOutput.additionalContext` channel
+4. Exits 0 (never blocks the underlying Glob or Grep)
+
+If no KB.md is found in the walk, the hook exits silently and the Glob or Grep proceeds normally. The hook is fast: a single filesystem walk plus a small file read takes microseconds. It runs on every Glob and Grep, so cost adds up only if you grep thousands of times per session.
+
+### Disabling
+
+To disable, remove the `Glob|Grep` entry from the `PreToolUse` array in `settings.json` and restart Claude Code. The hook script can stay on disk; without the settings entry it never runs.
+
 ## Directory Structure
 
 After `init`, `ingest`, and `compile`, your repo looks like this:
