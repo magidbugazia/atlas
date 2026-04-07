@@ -1073,39 +1073,9 @@ Concepts consulted: [count]
 
 **Invocation:** `/atlas search "retrieval augmented generation"` or `/atlas search "RAG"`
 
-No agents needed. Quick full-text lookup with alias expansion.
+**STOP and Read `~/.claude/skills/atlas/references/commands/search.md` in full before proceeding.** That file contains the complete operational logic for the search command: Phase 1 (Expand Search Terms via concept registry alias lookup), Phase 2 (Search wiki concepts and reports with context), Phase 3 (Output with deduplication and caps).
 
-### Phase 1: Expand Search Terms
-
-1. Read `.atlas/concepts.json` for the concept registry
-2. For each search term the user provided, check if it matches any alias in the registry. If yes, collect the canonical slug and all its aliases as additional search terms.
-   Example: user searches "RAG". Registry has `"retrieval-augmented-generation": {"aliases": ["RAG", ...]}`. Search terms expand to: "RAG", "retrieval-augmented-generation", "Retrieval-Augmented Generation".
-
-### Phase 2: Search
-
-1. For each search term (original + expanded aliases), Grep `wiki/concepts/` and `wiki/reports/` with context (3 lines before and after each match).
-2. Deduplicate results by file. Group matches by file path.
-3. Cap at 20 matching files. If more, show the first 20 and tell the user how many were omitted.
-
-### Phase 3: Output
-
-```
-## Search Results: "[original query]"
-
-[If aliases were expanded: "Also searched for: [expanded terms]"]
-
-### [N] matches in [M] files
-
-**[Concept Name](wiki/concepts/slug.md)**
-  [matched line with 1 line of context on each side]
-
-**[Concept Name](wiki/concepts/slug.md)**
-  [matched line with context]
-
-[Continue for each matching file...]
-
-[If no matches: "No results found. Try a broader term or check the concept registry with `/atlas status`."]
-```
+If `references/commands/search.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/search.md. The skill is partially installed. Cannot proceed."
 
 ---
 
