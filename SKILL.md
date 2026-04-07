@@ -405,6 +405,27 @@ If compile mode is FULL: create all pages fresh. Rebuild concepts.json from scra
 Raw sources to process:
 [list every file path]
 
+EXTRACTION PROFILES BY SOURCE TYPE:
+The depth and shape of extraction depends on the type of the source. Infer type from the `raw/` subdirectory the source lives in, then apply the matching profile when reading that file:
+
+- `raw/papers/` (whitepapers, academic papers, long-form reports, PDF-extracted files): Extract SECTION BY SECTION. Preserve the structure of the argument. For each section, capture the main claim, the evidence presented, and any cited authorities. Long sources deserve resolution; do not collapse a 50-page paper into one paragraph.
+
+- `raw/articles/` (blog posts, web articles, opinion pieces): Extract KEY CLAIMS plus the evidence cited for each claim. Preserve the author's argument structure. Distinguish between claims that are well-supported in the article and claims asserted without evidence.
+
+- `raw/notes/` when the file looks like a TRANSCRIPT (interview, meeting, podcast, conversation; speaker labels or timestamps present): Extract DECISIONS made, ACTION ITEMS mentioned, and 2-4 notable verbatim QUOTES. Decisions and action items are higher value than the surrounding chatter.
+
+- `raw/notes/` when the file looks like a THREAD or TWEET (short, under ~500 words, no code, no speaker labels): Extract the CORE INSIGHT, the CONTEXT that makes it legible, and any DIRECTIONAL CLAIM (where the field is heading). Short sources deserve compact treatment; do not over-extract.
+
+- `raw/notes/` when the file is a FREE-FORM NOTE (anything else): Treat as prose. Extract main ideas and any explicit decisions or open questions the author noted.
+
+- `raw/repos/` (code files: `.py`, `.js`, `.ts`, `.go`, `.rs`, etc.): Extract ARCHITECTURE (key classes and functions and how they fit together), PATTERNS used, and DEPENDENCIES (external libraries imported). Capture rationale comments verbatim per the rationale extraction rule. Do not try to summarize what every line does; the architecture is the value.
+
+- `raw/datasets/` (companion `-schema.md` files for tabular data): Extract the SCHEMA (columns, types) and any patterns visible in the first 3 rows. The dataset itself is the source of truth; the concept page just describes what kind of data lives there.
+
+- `raw/images/` (image files with no companion text): SKIP. Atlas's compile agents do not have vision tools; image-only sources contribute nothing to concept pages until a future version adds vision support.
+
+If the source type is ambiguous (e.g., a file in `raw/notes/` that could be either a transcript or a thread), use length and structure as tiebreakers: short with no speaker labels equals thread, long with speaker labels or timestamps equals transcript.
+
 TASK:
 1. Read .atlas/concepts.json for the current registry
 2. Read all listed raw source files
