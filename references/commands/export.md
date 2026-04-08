@@ -12,7 +12,19 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 2. Read `.atlas/concepts.json` for aliases
 3. Identify concept pages relevant to the topic (using alias-aware matching)
 4. Grep `wiki/concepts/` for the topic terms and their aliases
-5. Read all relevant articles
+5. Read relevant articles using the same scale-adaptive pattern as `/atlas query`:
+   - **Small wiki (fewer than 50 total concepts) or 5 or fewer relevant concepts:** read concept pages directly in main context.
+   - **Medium wiki (50-150 concepts) with 6+ relevant concepts:** spawn a single research agent to read all relevant concepts and return synthesized notes for the export. Do NOT load 6+ files into main context.
+   - **Large wiki (150+ concepts) with 3+ relevant categories:** spawn one research agent PER relevant category in PARALLEL. Each agent reads its category's sub-index, identifies relevant concepts within that category, reads them in full, and returns category-scoped notes (max 500 words per agent). The main context synthesizes the agent notes into the export.
+
+## Phase 2: Branch on Sub-Mode
+
+Based on the flag passed in the invocation:
+- `--slides` → execute Phase 2a only, skip Phase 2b and Phase 2c
+- `--report` → execute Phase 2b only, skip Phase 2a and Phase 2c
+- `--chart` → execute Phase 2c only, skip Phase 2a and Phase 2b
+
+If no sub-mode flag was passed, STOP and ask the user which format they want.
 
 ## Phase 2a: Slides (--slides)
 
