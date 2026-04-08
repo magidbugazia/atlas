@@ -28,13 +28,7 @@ You do NOT evaluate whether a source is worth including (that is `/mentor evalua
 | `/atlas export --chart "description"` | Generate matplotlib visualization from wiki data |
 | `/atlas search "term"` | Search wiki full text with alias expansion, return matches |
 
----
-
-## Optional: Always-On KB Awareness
-
-Atlas ships with an optional `PreToolUse` hook script (`~/.claude/hooks/atlas-kb-context.py`) that fires before every Glob and Grep call. If the working directory is inside a KB (KB.md found in cwd or up to 3 parent directories), the hook injects a brief notification telling Claude that the KB exists, where INDEX.md is, and to consider `/atlas search` or `/atlas query` before grepping raw files. The hook never blocks; it only adds context.
-
-This turns atlas from "tool the user remembers to invoke" into an always-on context layer. Install instructions: see `~/.claude/skills/atlas/README.md` (Always-On Setup section). The hook is opt-in and not required for atlas's core commands to work.
+Optional always-on KB awareness via a `PreToolUse` hook is available. See `~/.claude/skills/atlas/README.md` § Always-On Setup. The hook is opt-in and not required for atlas's core commands to work.
 
 ---
 
