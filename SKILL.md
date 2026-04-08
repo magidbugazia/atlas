@@ -73,7 +73,7 @@ Parse $ARGUMENTS to determine command:
 
 **Invocation:** `/atlas init "AI Engineering"` or `/atlas init "Fuel Operations"`
 
-**STOP and Read `~/.claude/skills/atlas/references/commands/init.md` in full before proceeding.** That file contains the complete operational logic for the init command: Phase 1 (Create Structure: directory tree, KB.md, hashes.json, INDEX.md, concepts.json) and Phase 2 (Confirm output).
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/init.md` now, then follow the instructions in that file.** It contains the complete operational logic for the init command: Phase 1 (Create Structure: directory tree, KB.md, hashes.json, INDEX.md, concepts.json) and Phase 2 (Confirm output).
 
 If `references/commands/init.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/init.md. The skill is partially installed. Cannot proceed."
 
@@ -83,7 +83,7 @@ If `references/commands/init.md` does not exist, STOP and tell the user: "Atlas 
 
 **Invocation:** `/atlas ingest <URL>` or `/atlas ingest <file path>` or `/atlas ingest <directory path>`
 
-**STOP and Read `~/.claude/skills/atlas/references/commands/ingest.md` in full before proceeding.** That file contains the complete operational logic for the ingest command: Phase 1 (Load Source: URL/file/directory branches with dedup, WebFetch, image downloads, file routing by extension), Phase 2 (Quick Analysis), Phase 3 (Update Metadata: hashes.json and KB.md), Phase 4 (Output).
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/ingest.md` now, then follow the instructions in that file.** It contains the complete operational logic for the ingest command: Phase 1 (Load Source: URL/file/directory branches with dedup, WebFetch, image downloads, file routing by extension), Phase 2 (Quick Analysis), Phase 3 (Update Metadata: hashes.json and KB.md), Phase 4 (Output).
 
 If `references/commands/ingest.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/ingest.md. The skill is partially installed. Cannot proceed."
 
@@ -93,7 +93,7 @@ If `references/commands/ingest.md` does not exist, STOP and tell the user: "Atla
 
 **Invocation:** `/atlas compile` (full rebuild) or `/atlas compile --incremental` (new sources only)
 
-**STOP and Read `~/.claude/skills/atlas/references/commands/compile.md` in full before proceeding.** That file contains the complete operational logic for the compile command: Phase 1 (Inventory with hash-based change detection and manual-drop frontmatter), Phase 1.5 (Frontmatter Backfill), Phase 2 (Large Source Detection and splitting), Phase 3 (Batch Planning across Small/Standard/Large compile paths), Small Compile Path (no agents), Standard Compile Path (3 sequential agents: Concept Compiler, Summary Writer, Index Builder), Large Compile Path (batched), Phase 4 (Verify Completeness), Phase 5 (Update Metadata), Phase 6 (Git Commit), Phase 7 (Output).
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/compile.md` now, then follow the instructions in that file.** It contains the complete operational logic for the compile command: Phase 1 (Inventory with hash-based change detection and manual-drop frontmatter), Phase 1.5 (Frontmatter Backfill), Phase 2 (Large Source Detection and splitting), Phase 3 (Batch Planning across Small/Standard/Large compile paths), Small Compile Path (no agents), Standard Compile Path (3 sequential agents: Concept Compiler, Summary Writer, Index Builder), Large Compile Path (batched), Phase 4 (Verify Completeness), Phase 5 (Update Metadata), Phase 6 (Git Commit), Phase 7 (Output).
 
 If `references/commands/compile.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/compile.md. The skill is partially installed. Cannot proceed."
 
@@ -103,7 +103,7 @@ If `references/commands/compile.md` does not exist, STOP and tell the user: "Atl
 
 **Invocation:** `/atlas query "What are the tradeoffs between RAG and fine-tuning?"`
 
-**STOP and Read `~/.claude/skills/atlas/references/commands/query.md` in full before proceeding.** That file contains the complete operational logic for the query command: Phase 1 (Two-Hop Hierarchical Retrieval with category selection, alias-aware concept selection, and scale-adaptive concept reading), Phase 2 (Synthesize answer to wiki/reports/), Phase 3 (Offer Filing back into the knowledge base).
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/query.md` now, then follow the instructions in that file.** It contains the complete operational logic for the query command: Phase 1 (Two-Hop Hierarchical Retrieval with category selection, alias-aware concept selection, and scale-adaptive concept reading), Phase 2 (Synthesize answer to wiki/reports/), Phase 3 (Offer Filing back into the knowledge base).
 
 If `references/commands/query.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/query.md. The skill is partially installed. Cannot proceed."
 
@@ -113,7 +113,7 @@ If `references/commands/query.md` does not exist, STOP and tell the user: "Atlas
 
 **Invocation:** `/atlas lint`
 
-**STOP and Read `~/.claude/skills/atlas/references/commands/lint.md` in full before proceeding.** That file contains the complete operational logic for the lint command: Phase 1 (Compute Hub Concepts deterministically, then spawn 3 agents in PARALLEL: Consistency Checker, Connection Discoverer, Source Verifier), Phase 2 (Consolidate findings into wiki/lint/lint-YYYY-MM-DD.md), Phase 3 (Auto-Fix and Git Commit). The 3 lint agents run in PARALLEL, not sequentially.
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/lint.md` now, then follow the instructions in that file.** It contains the complete operational logic for the lint command: Phase 1 (Compute Hub Concepts deterministically, then spawn 3 agents in PARALLEL: Consistency Checker, Connection Discoverer, Source Verifier), Phase 2 (Consolidate findings into wiki/lint/lint-YYYY-MM-DD.md), Phase 3 (Auto-Fix and Git Commit). The 3 lint agents run in PARALLEL, not sequentially.
 
 If `references/commands/lint.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/lint.md. The skill is partially installed. Cannot proceed."
 
@@ -123,7 +123,7 @@ If `references/commands/lint.md` does not exist, STOP and tell the user: "Atlas 
 
 **Invocation:** `/atlas status`
 
-**STOP and Read `~/.claude/skills/atlas/references/commands/status.md` in full before proceeding.** That file contains the complete operational logic for the status command: gather KB metadata, count raw and wiki files, detect untracked files, and render the status output.
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/status.md` now, then follow the instructions in that file.** It contains the complete operational logic for the status command: gather KB metadata, count raw and wiki files, detect untracked files, and render the status output.
 
 If `references/commands/status.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/status.md. The skill is partially installed. Cannot proceed."
 
@@ -133,7 +133,7 @@ If `references/commands/status.md` does not exist, STOP and tell the user: "Atla
 
 **Invocation:** `/atlas export --slides "topic"` or `/atlas export --report "topic"` or `/atlas export --chart "description"`
 
-**STOP and Read `~/.claude/skills/atlas/references/commands/export.md` in full before proceeding.** That file contains the complete operational logic for the export command: Phase 1 (Research, shared across all sub-modes), Phase 2a (Slides via Marp), Phase 2b (Report long-form), Phase 2c (Chart via matplotlib script). Determine which sub-mode (`--slides`, `--report`, or `--chart`) was passed and follow the matching phase.
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/export.md` now, then follow the instructions in that file.** It contains the complete operational logic for the export command: Phase 1 (Research, shared across all sub-modes), Phase 2a (Slides via Marp), Phase 2b (Report long-form), Phase 2c (Chart via matplotlib script). Determine which sub-mode (`--slides`, `--report`, or `--chart`) was passed and follow the matching phase.
 
 If `references/commands/export.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/export.md. The skill is partially installed. Cannot proceed."
 
@@ -143,7 +143,7 @@ If `references/commands/export.md` does not exist, STOP and tell the user: "Atla
 
 **Invocation:** `/atlas search "retrieval augmented generation"` or `/atlas search "RAG"`
 
-**STOP and Read `~/.claude/skills/atlas/references/commands/search.md` in full before proceeding.** That file contains the complete operational logic for the search command: Phase 1 (Expand Search Terms via concept registry alias lookup), Phase 2 (Search wiki concepts and reports with context), Phase 3 (Output with deduplication and caps).
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/search.md` now, then follow the instructions in that file.** It contains the complete operational logic for the search command: Phase 1 (Expand Search Terms via concept registry alias lookup), Phase 2 (Search wiki concepts and reports with context), Phase 3 (Output with deduplication and caps).
 
 If `references/commands/search.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/search.md. The skill is partially installed. Cannot proceed."
 
