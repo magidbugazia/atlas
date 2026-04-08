@@ -3,6 +3,7 @@ name: atlas
 description: Knowledge base builder - collects raw material, compiles an interconnected wiki, maintains indexes, answers queries, and lints for consistency. Pair with /mentor for resource evaluation and industry alignment.
 argument-hint: "init <subject> | ingest <URL | path> | compile [--incremental] | query \"question\" | search \"term\" | lint | status | export --slides|--report|--chart \"topic\""
 allowed-tools: Read Write Edit Grep Glob Bash Task WebFetch WebSearch AskUserQuestion
+disable-model-invocation: true
 ---
 
 # Atlas: Knowledge Base Builder
