@@ -22,6 +22,10 @@ No agents needed. Quick full-text lookup with alias expansion.
 
 ## Phase 3: Output
 
+Show matched lines verbatim from grep output -- do not summarize, paraphrase, or synthesize. The user reads the raw matches and decides what to dig into.
+
+Use plain file paths (not markdown links) since the primary rendering context is a terminal. Always include the parent directory (`wiki/concepts/` or `wiki/reports/`) so the user can navigate directly.
+
 ```
 ## Search Results: "[original query]"
 
@@ -29,11 +33,11 @@ No agents needed. Quick full-text lookup with alias expansion.
 
 ### [N] matches in [M] files
 
-**[Concept Name](wiki/concepts/slug.md)**
-  [matched line with 1 line of context on each side]
+**wiki/concepts/slug.md**
+  [matched line verbatim, with 1 line of context on each side, as returned by grep]
 
-**[Concept Name](wiki/concepts/slug.md)**
-  [matched line with context]
+**wiki/reports/slug.md**
+  [matched line verbatim, with 1 line of context on each side]
 
 [Continue for each matching file...]
 
