@@ -207,7 +207,3 @@ atlas/
 ```
 
 When the user invokes a command, SKILL.md tells Claude to STOP and Read the corresponding file before proceeding. This keeps each invocation's context cost ~75% smaller than loading the full SKILL.md. A `/atlas status` call loads ~170 lines (SKILL.md) + ~45 lines (status.md) instead of the previous ~1160-line monolith.
-
-## Design Notes
-
-Engineering rationale and deferred work live in [DESIGN.md](./DESIGN.md).
