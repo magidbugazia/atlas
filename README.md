@@ -196,44 +196,6 @@ The key design: atlas finds the gaps and prepares the commands. Mentor evaluates
 
 Atlas works without mentor. Lint still saves reports and auto-fixes structural issues. The `/mentor evaluate` commands in the report are suggestions, not dependencies. If mentor isn't installed, chase the leads manually.
 
-### Example Lint Report
-
-Excerpt from a real `wiki/lint/lint-2026-04-14.md` on a ~120-concept wiki:
-
-```markdown
-# Lint Report — 2026-04-14
-
-**Health:** NEEDS ATTENTION  (2 critical, 4 important, 1 unsupported claim)
-
-## Issues
-
-- **Broken wikilink** in `concepts/reranking.md:23` → `[[cross-encoder]]`
-  (no such concept; did you mean `[[cross-encoders]]`?) — auto-fix available
-- **Orphan page** `concepts/rag-fusion.md` — no other page links to it
-
-## Source Verification
-
-- `concepts/retrieval-augmented-generation.md:41` claims "Gao et al. (2023)
-  found RAG reduces hallucination by 42%." The cited source
-  (`raw/papers/gao-2023-rag-survey.pdf`) does NOT contain this number; the
-  paper discusses hallucination qualitatively but reports no 42% figure.
-  **Action:** edit the concept page to match what the source actually says.
-
-## New Article Candidates
-
-- **"Contextual compression"** — referenced by 7 concept pages, no dedicated
-  page exists. Run:
-  `/mentor evaluate "contextual compression" --context wiki/concepts/reranking.md wiki/concepts/chunking-strategies.md`
-
-## Research Questions
-
-- The wiki covers embedding models and vector DBs separately but never
-  answers "how do I choose an embedding dimension?" Run:
-  `/atlas query "how to choose embedding dimensions for RAG"`
-```
-
-Each section has a clear follow-up: issues get auto-fixed, verification failures get hand-edited, and the candidate and research sections include ready-to-run commands so nothing is lost between sessions.
-
 ## Limitations
 
 - **Requires Claude Code.** Atlas runs as a Claude Code skill. It doesn't work standalone, in other IDEs, or with other model providers.
