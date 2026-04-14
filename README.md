@@ -42,6 +42,12 @@ You research a topic deeply. You read 50 articles, 20 papers, browse 10 repos. T
 
 Atlas solves both. Raw material goes into one directory. The LLM compiles it into a structured, navigable, queryable wiki. The LLM maintains the wiki. You rarely edit it directly.
 
+## Why Not Just Obsidian or Notion?
+
+Those are editing tools — you write, they store. Atlas is automation on top of markdown: the LLM does the writing, you curate what goes in. Atlas plays nicely with Obsidian as a frontend (Karpathy uses it that way) — it just replaces the "manually organize my notes" step with "the LLM compiles them."
+
+Compared to RAG frameworks (LangChain, LlamaIndex): Atlas stays local, produces plain markdown you can read and grep, and keeps you portable. No vector store, no vendor lock-in. If Claude goes away tomorrow, you still have the `.md` files.
+
 ## Key Design Decisions
 
 **One file per concept, not per source.** If three articles discuss "prompt engineering," they become ONE concept page that synthesizes all three. Knowledge converges into concepts, not sources.
@@ -59,6 +65,39 @@ Atlas solves both. Raw material goes into one directory. The LLM compiles it int
 **Git-backed operations.** Every compile, query filing, and lint fix auto-commits if the knowledge base is in a git repo. Rollback, history, and diffable changes.
 
 **Outputs as files, not chat.** Answers get written as markdown files in the wiki. You can file them back in to enrich future queries. Each question makes the wiki more complete.
+
+## Directory Structure
+
+After `init`, `ingest`, and `compile`, your repo looks like this:
+
+```
+./
+├── KB.md                          # KB metadata (subject, scope, compile stats)
+├── .atlas/                        # Internal machinery (gitignored, regenerable via compile)
+│   ├── hashes.json                # SHA-256 per raw file — incremental compile change detection
+│   ├── concepts.json              # Slug/name/alias registry — dedup, alias search, compile coordination
+│   └── splits/                    # Temp working copies when large files get split for compile
+├── raw/                           # Append-only archive of source material
+│   ├── articles/                  # .md files (ingested articles, guides)
+│   ├── papers/                    # .pdf files
+│   ├── repos/                     # Code files (.py, .js, .ts)
+│   ├── datasets/                  # .csv, .parquet, .jsonl, .xlsx
+│   ├── images/                    # .png, .jpg, .svg
+│   └── notes/                     # Everything else
+└── wiki/                          # Compiled output — the part you read
+    ├── INDEX.md                   # Entry point. Lists categories, links to sub-indexes. Under 60 lines.
+    ├── indexes/                   # Navigation — answers "what concepts exist in category Y?"
+    ├── concepts/                  # Knowledge — answers "what is X?" One file per concept.
+    ├── summaries/                 # Provenance — answers "what did source Z contribute?"
+    ├── reports/                   # Query answers and exported reports.
+    ├── lint/                      # Saved lint reports with actionable follow-up commands.
+    ├── slides/                    # Marp slide decks from export.
+    └── images/                    # Charts and downloaded images.
+```
+
+**Navigation flow:** `INDEX.md` → `indexes/[category].md` → `concepts/[topic].md` → cross-links to related concepts. `summaries/` is the reverse lookup: raw source → which concepts it contributed to.
+
+**`.atlas/` vs `wiki/`:** `.atlas/` is machine state (hashes, registry, temp splits). `wiki/` is the human-readable output. The naming overlap between `concepts.json` (lookup table) and `concepts/` (wiki pages) is intentional — one is a flat registry for dedup and alias search, the other is the actual content.
 
 ## Pairing with Mentor
 
@@ -110,8 +149,12 @@ Atlas works without mentor. Lint still saves reports and auto-fixes structural i
 
 ## Limitations
 
-- **No source evaluation.** Atlas ingests everything you give it. Use `/mentor evaluate` to decide what's worth adding.
-- **Obsidian recommended.** Atlas generates standard markdown viewable anywhere. Obsidian adds backlinks, graph views, and Marp slide support on top.
+- **Requires Claude Code.** Atlas runs as a Claude Code skill. It doesn't work standalone, in other IDEs, or with other model providers.
+- **Scale ceiling around 500-1000 concepts.** The two-tier hierarchical index stays performant up to roughly that range. Past that, index structure needs re-architecture (deeper category hierarchy, sharded sub-indexes) that Atlas doesn't currently support.
+- **Compile time scales with source count.** A full rebuild on 100 sources takes minutes; 500+ takes tens of minutes. Use `compile --incremental` for day-to-day work — it only rebuilds changed sources.
+- **Hand-edits to wiki files get overwritten.** The wiki is regenerated from `raw/`. If you edit `wiki/concepts/X.md` directly, the next compile may blow your changes away. Edit sources in `raw/` instead, or accept that wiki edits are ephemeral.
+- **Single-user.** Atlas assumes one person writing to one repo. No multi-user sync, no concurrent-edit resolution, no real-time collaboration.
+- **No source evaluation built in.** Atlas ingests whatever you give it. Garbage sources in → garbage concept pages out. Use `/mentor evaluate` to filter before ingesting, and `/atlas lint` to catch hallucinations after.
 
 ## Always-On Setup (Optional)
 
@@ -151,39 +194,6 @@ If no KB.md is found in the walk, the hook exits silently and the Glob or Grep p
 ### Disabling
 
 To disable, remove the `Glob|Grep` entry from the `PreToolUse` array in `settings.json` and restart Claude Code. The hook script can stay on disk; without the settings entry it never runs.
-
-## Directory Structure
-
-After `init`, `ingest`, and `compile`, your repo looks like this:
-
-```
-./
-├── KB.md                          # KB metadata (subject, scope, compile stats)
-├── .atlas/                        # Internal machinery (gitignored, regenerable via compile)
-│   ├── hashes.json                # SHA-256 per raw file — incremental compile change detection
-│   ├── concepts.json              # Slug/name/alias registry — dedup, alias search, compile coordination
-│   └── splits/                    # Temp working copies when large files get split for compile
-├── raw/                           # Append-only archive of source material
-│   ├── articles/                  # .md files (ingested articles, guides)
-│   ├── papers/                    # .pdf files
-│   ├── repos/                     # Code files (.py, .js, .ts)
-│   ├── datasets/                  # .csv, .parquet, .jsonl, .xlsx
-│   ├── images/                    # .png, .jpg, .svg
-│   └── notes/                     # Everything else
-└── wiki/                          # Compiled output — the part you read
-    ├── INDEX.md                   # Entry point. Lists categories, links to sub-indexes. Under 60 lines.
-    ├── indexes/                   # Navigation — answers "what concepts exist in category Y?"
-    ├── concepts/                  # Knowledge — answers "what is X?" One file per concept.
-    ├── summaries/                 # Provenance — answers "what did source Z contribute?"
-    ├── reports/                   # Query answers and exported reports.
-    ├── lint/                      # Saved lint reports with actionable follow-up commands.
-    ├── slides/                    # Marp slide decks from export.
-    └── images/                    # Charts and downloaded images.
-```
-
-**Navigation flow:** `INDEX.md` → `indexes/[category].md` → `concepts/[topic].md` → cross-links to related concepts. `summaries/` is the reverse lookup: raw source → which concepts it contributed to.
-
-**`.atlas/` vs `wiki/`:** `.atlas/` is machine state (hashes, registry, temp splits). `wiki/` is the human-readable output. The naming overlap between `concepts.json` (lookup table) and `concepts/` (wiki pages) is intentional — one is a flat registry for dedup and alias search, the other is the actual content.
 
 ## Skill File Structure
 
