@@ -1,6 +1,6 @@
 # Atlas
 
-A Claude Code skill that turns scattered research material into a structured, interconnected wiki maintained by an LLM. Based on a workflow described by Andrej Karpathy for using LLMs to build personal knowledge bases.
+A Claude Code skill that turns scattered research material into a structured, interconnected wiki maintained by an LLM. Based on [Andrej Karpathy's LLM Knowledge Bases workflow](https://x.com/karpathy/status/2039805659525644595) (April 2, 2026), which describes the ingest → compile → query → lint loop that Atlas implements as a skill.
 
 You collect raw sources. Atlas organizes them into concept pages with summaries, cross-links, and a two-tier hierarchical index. You query it, and the LLM researches answers from the wiki and writes them as files that feed back into the knowledge base. The knowledge compounds over time.
 
