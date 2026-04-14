@@ -4,6 +4,38 @@ A Claude Code skill that turns scattered research material into a structured, in
 
 You collect raw sources. Atlas organizes them into concept pages with summaries, cross-links, and a two-tier hierarchical index. You query it, and the LLM researches answers from the wiki and writes them as files that feed back into the knowledge base. The knowledge compounds over time.
 
+**What Atlas adds beyond the original workflow.** Karpathy describes the shape of the loop (ingest → compile → query → lint). Atlas is the implementation that handles the engineering problems a real knowledge base hits as it grows: two-tier hierarchical indexing that prevents context rot past ~150 concepts, an alias registry that stops duplicate pages, a Source Verifier that audits wiki claims against their raw sources, scale-adaptive query routing, git-backed auto-commits on every operation, and a clean split with the companion Mentor skill so external curation (what belongs) and internal organization (where it goes) are separate concerns.
+
+## Quick Start
+
+```bash
+/atlas init "my research topic"     # Create KB structure
+/atlas ingest <URL or file>         # Add a source
+/atlas compile                       # Build the wiki
+/atlas query "your question"         # Research against the wiki
+/atlas lint                          # Health check with fix suggestions
+```
+
+Your wiki lives in `wiki/`. Entry point: `wiki/INDEX.md`. Concept pages: `wiki/concepts/`. The LLM maintains everything — you rarely edit directly. Git auto-commits on every operation, so rollback is cheap.
+
+## Commands
+
+See SKILL.md for full operational details.
+
+| Command | What it does | Reads | Creates / Updates |
+|---------|-------------|-------|-------------------|
+| `init <subject>` | Scaffold a new KB | nothing | `KB.md`, `.atlas/*`, `raw/` dirs, `wiki/INDEX.md` |
+| `ingest <source>` | Add a file, URL, or directory to raw | source file/URL | `raw/[type]/`, `.atlas/hashes.json`, `KB.md` |
+| `compile` | Full rebuild of wiki from all raw material | `raw/*`, `.atlas/*` | `wiki/concepts/`, `wiki/summaries/`, `wiki/indexes/`, `wiki/INDEX.md`, `.atlas/concepts.json`, `KB.md` |
+| `compile --incremental` | Rebuild only new/changed sources | `raw/*`, `.atlas/hashes.json` | same as compile, only changed files |
+| `query "question"` | Research answer from wiki | `wiki/INDEX.md`, `wiki/indexes/`, `wiki/concepts/` | `wiki/reports/` |
+| `search "term"` | Full-text search with alias expansion | `.atlas/concepts.json`, `wiki/concepts/`, `wiki/reports/` | nothing (display only) |
+| `lint` | Health check and hallucination audit | all `wiki/` files, `raw/`, `.atlas/concepts.json` | `wiki/lint/lint-YYYY-MM-DD.md`, fixes if approved, `KB.md` |
+| `status` | Quick stats | `KB.md`, `.atlas/*`, `wiki/INDEX.md` | nothing (display only) |
+| `export --slides "topic"` | Marp slide deck | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/slides/` |
+| `export --report "topic"` | Long-form report | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/reports/` |
+| `export --chart "desc"` | matplotlib visualization | `wiki/concepts/` | `wiki/images/` |
+
 ## The Problem It Solves
 
 You research a topic deeply. You read 50 articles, 20 papers, browse 10 repos. The knowledge ends up scattered across browser tabs, PDFs in Downloads, and your unreliable memory. Or you write everything into one massive file that becomes unnavigable past 2000 lines.
@@ -28,11 +60,19 @@ Atlas solves both. Raw material goes into one directory. The LLM compiles it int
 
 **Outputs as files, not chat.** Answers get written as markdown files in the wiki. You can file them back in to enrich future queries. Each question makes the wiki more complete.
 
-## How Atlas and Mentor Work Together
+## Pairing with Mentor
 
-Atlas organizes knowledge. It does not judge whether a source is worth including (that is `/mentor evaluate`), test your understanding (that is `/mentor interview`), or check industry alignment (that is `/mentor audit`).
+Atlas organizes knowledge. It does not judge whether a source is worth including, test your understanding, or check industry alignment — that's the companion [Mentor skill](https://github.com/magidbugazia/mentor).
 
-Mentor decides WHAT belongs. Atlas does the WORK of organizing it. Atlas lint checks internal consistency and source accuracy. Mentor audit checks external alignment with the job market.
+| Job | Tool |
+|-----|------|
+| Filter what's worth ingesting | `/mentor evaluate` |
+| Audit against job market demands | `/mentor audit` |
+| Test your understanding | `/mentor interview` |
+| Organize what passes evaluation | `/atlas ingest` + `/atlas compile` |
+| Internal consistency and hallucination audit | `/atlas lint` |
+
+Atlas works standalone (lint still saves reports, leads chased manually). Mentor is domain-specific and can be adapted to any field — see the mentor skill README for the rewrite template.
 
 ## What to Expect
 
@@ -72,10 +112,6 @@ Atlas works without mentor. Lint still saves reports and auto-fixes structural i
 
 - **No source evaluation.** Atlas ingests everything you give it. Use `/mentor evaluate` to decide what's worth adding.
 - **Obsidian recommended.** Atlas generates standard markdown viewable anywhere. Obsidian adds backlinks, graph views, and Marp slide support on top.
-
-## Pairing with a Mentor Skill
-
-Atlas is domain-agnostic. The optional mentor skill adds opinionated curation: filtering what's worth ingesting, auditing against job market demands, and testing your understanding. Atlas works standalone. Mentor makes it smarter about what goes in. See the mentor skill's README for how to adapt it to any domain.
 
 ## Always-On Setup (Optional)
 
@@ -149,24 +185,6 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
 
 **`.atlas/` vs `wiki/`:** `.atlas/` is machine state (hashes, registry, temp splits). `wiki/` is the human-readable output. The naming overlap between `concepts.json` (lookup table) and `concepts/` (wiki pages) is intentional — one is a flat registry for dedup and alias search, the other is the actual content.
 
-## Commands
-
-See SKILL.md for full operational details.
-
-| Command | What it does | Reads | Creates / Updates |
-|---------|-------------|-------|-------------------|
-| `init <subject>` | Scaffold a new KB | nothing | `KB.md`, `.atlas/*`, `raw/` dirs, `wiki/INDEX.md` |
-| `ingest <source>` | Add a file, URL, or directory to raw | source file/URL | `raw/[type]/`, `.atlas/hashes.json`, `KB.md` |
-| `compile` | Full rebuild of wiki from all raw material | `raw/*`, `.atlas/*` | `wiki/concepts/`, `wiki/summaries/`, `wiki/indexes/`, `wiki/INDEX.md`, `.atlas/concepts.json`, `KB.md` |
-| `compile --incremental` | Rebuild only new/changed sources | `raw/*`, `.atlas/hashes.json` | same as compile, only changed files |
-| `query "question"` | Research answer from wiki | `wiki/INDEX.md`, `wiki/indexes/`, `wiki/concepts/` | `wiki/reports/` |
-| `search "term"` | Full-text search with alias expansion | `.atlas/concepts.json`, `wiki/concepts/`, `wiki/reports/` | nothing (display only) |
-| `lint` | Health check and hallucination audit | all `wiki/` files, `raw/`, `.atlas/concepts.json` | `wiki/lint/lint-YYYY-MM-DD.md`, fixes if approved, `KB.md` |
-| `status` | Quick stats | `KB.md`, `.atlas/*`, `wiki/INDEX.md` | nothing (display only) |
-| `export --slides "topic"` | Marp slide deck | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/slides/` |
-| `export --report "topic"` | Long-form report | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/reports/` |
-| `export --chart "desc"` | matplotlib visualization | `wiki/concepts/` | `wiki/images/` |
-
 ## Skill File Structure
 
 The skill uses a sub-indexed pattern to keep `SKILL.md` small. SKILL.md contains the dispatcher, Phase 0 (auto-detect knowledge base), Mode Detection, and Rules for All Commands. Per-command operational logic lives in separate reference files that get loaded on demand:
@@ -190,24 +208,6 @@ atlas/
 
 When the user invokes a command, SKILL.md tells Claude to STOP and Read the corresponding file before proceeding. This keeps each invocation's context cost ~75% smaller than loading the full SKILL.md. A `/atlas status` call loads ~170 lines (SKILL.md) + ~45 lines (status.md) instead of the previous ~1160-line monolith.
 
-## Deferred Work
+## Design Notes
 
-Things that have been considered, decided to defer, and parked here so they're not lost.
-
-### Tree-sitter AST extraction for `raw/repos/`
-
-**Status:** deferred (2026-04-07).
-
-**Idea:** Run tree-sitter (a fast, local, deterministic AST parser with bindings for Python, JavaScript, TypeScript, Go, Rust, etc.) on every code file in `raw/repos/` before the Concept Compiler agent runs. Extract classes, functions, imports, and call graphs into a structured artifact. Hand the structured data to the Concept Compiler instead of raw source text. The agent then writes concept pages from clean parsed facts rather than re-parsing source code itself.
-
-**Why it would help:** Atlas currently treats `.py`, `.js`, `.ts` files as text and pays Claude tokens to re-parse the code semantically. For code-heavy KBs (a repo dump, a research codebase) this is expensive, slow, and error-prone. Tree-sitter does the parsing in milliseconds for free, locally.
-
-**Why it's deferred:** Tree-sitter adds a new external dependency (Python or Node bindings, plus per-language grammar packages). Atlas is currently dependency-free aside from `git` and `shasum`. Adding tree-sitter is a real install step the user must perform, and it changes atlas from a pure markdown tool into something with a binary toolchain. Worth doing eventually if atlas usage shows code-heavy KBs are common, but not until then.
-
-**What would need to change when revisited:**
-- Add a tree-sitter dependency (probably `tree_sitter` Python package) and document the install
-- Add a new compile pre-pass that runs tree-sitter on every file in `raw/repos/` and writes structured AST output to a temp location
-- Update the Concept Compiler agent prompt to read the structured AST output for code sources instead of the raw file
-- Add a fallback path: if tree-sitter is not installed, fall back to the current behavior (Claude parses code as text)
-
-**Source of the idea:** graphify (`safishamsi/graphify`), which uses tree-sitter for the same purpose in its two-pass extraction pipeline. Atlas borrows the idea but does not adopt graphify's NetworkX graph data model.
+Engineering rationale and deferred work live in [DESIGN.md](./DESIGN.md).
