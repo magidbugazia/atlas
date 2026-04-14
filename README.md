@@ -162,6 +162,50 @@ Atlas organizes knowledge. It does not judge whether a source is worth including
 
 Atlas works standalone (lint still saves reports, leads chased manually). Mentor is domain-specific and can be adapted to any field — see the mentor skill README for the rewrite template.
 
+## Two Ingest Paths: Fidelity vs. Convenience
+
+Atlas ingest has two paths for web content, and you should pick based on how you'll use the source.
+
+**Fidelity = how closely the stored content matches the original word-for-word.** High fidelity preserves the author's exact wording (safe to quote directly, cite publicly, or rely on for exact terminology). Low fidelity captures the gist but may paraphrase through an LLM pass.
+
+| Path | Fidelity | When to use |
+|------|----------|-------------|
+| **Clip locally → `/atlas ingest <path>`** | High (verbatim) | Material you'll quote directly, cite publicly (LinkedIn, interviews, research), or depend on exact wording. Also any source behind auth, paywalls, or known to change (company blogs, docs). |
+| **`/atlas ingest <URL>` directly** | Best-effort verbatim via LLM prompt | Routine topical coverage where you just need the concepts logged. Small skill cost for the convenience of one-command ingestion. |
+
+### The clip-then-ingest workflow (recommended for fidelity)
+
+Pick any tool that saves a web page as markdown or HTML to local disk:
+
+- **Obsidian Web Clipper** (browser extension). Outputs clean markdown; Karpathy's recommendation. Best if you already use Obsidian.
+- **SingleFile** / **SingleFile Lite** (browser extension). Saves the complete page as a single HTML file. Language-agnostic; works for anyone.
+- **MarkDownload** (browser extension). Specifically outputs markdown with YAML frontmatter.
+- **Browser's native "Save Page As..."** (HTML or webpage complete). Zero install, works everywhere. Atlas ingests `.html` as a file and preserves it verbatim.
+- **Reader mode → print to PDF**. Useful for long articles with heavy formatting. Atlas ingests PDFs and extracts text via the Read tool.
+
+Save the file anywhere (Downloads, Desktop, a dedicated `~/clippings/` folder — it doesn't matter), then run `/atlas ingest <saved file path>`. Atlas moves the file into `raw/`, runs dedup checks, downloads referenced images locally, and updates `.atlas/hashes.json` and `KB.md`. No LLM interpretation of the source content happens at ingest.
+
+**Why not drop files directly into `raw/articles/` yourself?** You skip atlas's bookkeeping (dedup by URL, image downloading, hash registration, `raw_count` increment). The file becomes orphaned from atlas state. Always go through `/atlas ingest`.
+
+### Direct URL ingest (convenience path)
+
+`/atlas ingest https://...` uses WebFetch with a verbatim-preservation prompt. Atlas warns you at invocation time that this path is LLM-mediated and offers the clip-then-ingest alternative. If you proceed, the fidelity is best-effort — the prompt asks the model to preserve every sentence exactly, but an LLM pass is still an LLM pass.
+
+### The `extraction_method` frontmatter field
+
+Every ingested file gets an `extraction_method` field in its frontmatter so compile, lint, and future you can judge fidelity:
+
+| Value | Meaning |
+|-------|---------|
+| `file-copy` | Verbatim copy of a local file. Highest fidelity. |
+| `web-clipper` | File from a browser clipper (Obsidian Web Clipper, SingleFile, MarkDownload). Verbatim. |
+| `webfetch-verbatim-prompt` | URL ingested directly via WebFetch with a preservation prompt. Best-effort verbatim but LLM-mediated. |
+| `pdf-extract` | Text extracted from a PDF. Depends on PDF quality. |
+| `dataset-schema` | Schema summary only, not the full data. |
+| `manual-drop` | File placed directly in `raw/`, metadata backfilled during compile. Unknown fidelity. |
+
+If you later audit a wiki claim and suspect compile hallucinated or compressed something important, check the source file's `extraction_method`. Anything other than `file-copy` or `web-clipper` is worth re-verifying against the original.
+
 ## What to Expect
 
 **Image handling.** When you ingest a URL, Atlas downloads significant images from the article and saves them to `raw/images/`. Decorative images (logos, avatars, icons, tracking pixels, anything under 5KB) are skipped. Markdown image references in the saved article are rewritten to point to the local copies. During compile, image references carry through into concept pages automatically. If a download fails, the original remote URL is kept.
@@ -170,7 +214,7 @@ Atlas works standalone (lint still saves reports, leads chased manually). Mentor
 
 **Duplicate detection.** Before adding a new raw source, Atlas checks if the same URL or filename already exists in `raw/`. If it finds a match, it asks whether to update, duplicate, or skip.
 
-**Manual drops.** You can place files directly into `raw/` (via Obsidian Web Clipper, file explorer, drag-and-drop). During compile, Atlas detects files without frontmatter, adds minimal metadata (title from filename, date from file timestamp, source marked as "manual drop"), and includes them in the compile.
+**Manual drops.** You can place files directly into `raw/` (file explorer, drag-and-drop, or by saving a clipper's output to `raw/articles/` directly). During compile, Atlas detects files without frontmatter, adds minimal metadata (title from filename, date from file timestamp, `extraction_method: manual-drop`), and includes them in the compile. Note: manual drops skip atlas's ingest bookkeeping (dedup check, image downloading, hash registration) — prefer `/atlas ingest <path>` whenever possible.
 
 **Query filing.** After answering a query, Atlas offers to extract new concepts from the answer back into the wiki. Accepting this creates or updates concept pages, enriching future queries.
 

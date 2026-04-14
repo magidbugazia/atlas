@@ -12,11 +12,12 @@ Parse what follows `ingest`:
 
 **If URL** (starts with `http`):
 
-1. **Dedup check:** Grep `raw/` recursively for the URL string in file frontmatter. If found, tell the user: "This URL was already ingested as `[existing file path]` on [date]. Update the existing copy or add a duplicate?" If they say update, overwrite the existing file. If they say skip, stop. Only proceed with a new file if they explicitly want a duplicate.
-2. WebFetch the URL with prompt: "Extract ALL content from this page. Include: title, author, date published, all text content, descriptions of important images/diagrams, code examples. Preserve the document structure with markdown headings."
-3. If fetch fails (403, 404, timeout): STOP. Tell user the URL is not accessible.
-4. Derive a filename from the title: lowercase, hyphens for spaces, strip special characters, max 60 characters. Example: "Understanding Transformer Architecture" becomes `understanding-transformer-architecture.md`
-5. Write the extracted content to `raw/articles/[filename].md` with frontmatter:
+1. **Fidelity warning first.** Before fetching, tell the user: "Direct URL ingest runs the content through an LLM (WebFetch), which can paraphrase or compress. For fidelity-critical sources (material you'll quote directly, cite publicly, or rely on for exact terminology), save the page locally first using a browser clipper (Obsidian Web Clipper, SingleFile, MarkDownload, or browser 'Save Page As...') and then run `/atlas ingest <saved path>` for a verbatim copy. Proceed with URL ingest anyway? (Best for routine topical coverage.)" If they decline, stop. If they proceed, continue.
+2. **Dedup check:** Grep `raw/` recursively for the URL string in file frontmatter. If found, tell the user: "This URL was already ingested as `[existing file path]` on [date]. Update the existing copy or add a duplicate?" If they say update, overwrite the existing file. If they say skip, stop. Only proceed with a new file if they explicitly want a duplicate.
+3. WebFetch the URL with a **verbatim-preservation prompt**: "Return the full article body as markdown. Preserve every paragraph, sentence, quote, heading, and code block exactly as written — do not summarize, paraphrase, compress, restructure, or editorialize. Preserve the author's exact wording. Strip only: ads, navigation menus, footers, sidebar widgets, cookie banners, social share buttons, author bios unrelated to the article, and 'related posts' sections. Keep: title, author, publish date, full body text, image alt-text for content-bearing images, code blocks, tables, and blockquotes. If uncertain whether to keep something, keep it."
+4. If fetch fails (403, 404, timeout): STOP. Tell user the URL is not accessible.
+5. Derive a filename from the title: lowercase, hyphens for spaces, strip special characters, max 60 characters. Example: "Understanding Transformer Architecture" becomes `understanding-transformer-architecture.md`
+6. Write the extracted content to `raw/articles/[filename].md` with frontmatter:
 
 ```markdown
 ---
@@ -25,10 +26,13 @@ source: [URL]
 author: [if found]
 date_published: [if found]
 date_ingested: [today]
+extraction_method: webfetch-verbatim-prompt
 ---
 
 [extracted content]
 ```
+
+The `extraction_method` field tells downstream steps (compile, lint Source Verifier, future you) the fidelity level of this source. Valid values: `webfetch-verbatim-prompt` (URL via WebFetch, best-effort verbatim but still LLM-mediated), `file-copy` (verbatim file copy, highest fidelity), `web-clipper` (file ingested from a browser clipper like Obsidian Web Clipper or SingleFile — verbatim), `pdf-extract` (text extracted from PDF via Read), `dataset-schema` (schema summary only, not the full data), `manual-drop` (file placed directly in `raw/` without frontmatter, backfilled during compile).
 
 6. If the extracted markdown contains image references (`![alt](url)`), attempt to download each image:
    - Skip decorative images, avatars, ads, logos, and tracking pixels (images under 5KB or with names like `logo`, `avatar`, `icon`, `pixel`, `tracking`).
@@ -41,13 +45,14 @@ date_ingested: [today]
 
 1. Verify the file exists using Read
 2. **Dedup check:** If the file is already inside `raw/`, note it and stop. If not, derive the target filename and check if a file with that name already exists in the target `raw/` subdirectory. If it does, warn the user and ask how to proceed.
-3. If the file is elsewhere: read it and write a copy to the appropriate `raw/` subdirectory:
-   - `.md` files go to `raw/articles/`
-   - `.pdf` files go to `raw/papers/`. After copying, extract text content using the Read tool (which supports PDFs with the `pages` parameter — read in batches of 20 pages). Write extracted text to a companion file at `raw/papers/[name]-extracted.md` with frontmatter noting the original PDF path and page count. During compile, agents read the extracted `.md` file, not the PDF binary.
-   - `.py`, `.js`, `.ts` and other code files go to `raw/repos/`
-   - `.csv`, `.parquet`, `.jsonl`, `.xlsx` go to `raw/datasets/`. After copying, extract a brief schema summary (column names, row count, first 3 rows for CSV/JSONL) and prepend it as a markdown comment at the top of a companion `.md` file: `raw/datasets/[name]-schema.md`. This schema file is what agents read during compile (they can't parse raw data formats directly).
-   - `.png`, `.jpg`, `.svg` and other image files go to `raw/images/`
-   - Everything else goes to `raw/notes/`
+3. **Detect clipper origin.** If the source file is `.md`, scan its content and existing frontmatter for browser-clipper signatures: Obsidian Web Clipper typically adds `source:` or `url:` frontmatter keys plus a "Clipped from" footer; SingleFile adds HTML comments like `<!-- Page saved with SingleFile`; MarkDownload adds a specific frontmatter shape. If any signature is present, set `extraction_method: web-clipper` in the copied file's frontmatter. If no signature is present but the file is a plain `.md`, use `extraction_method: file-copy`.
+4. If the file is elsewhere: read it and write a copy to the appropriate `raw/` subdirectory with `extraction_method` set per step 3 (for `.md`) or per the mapping below:
+   - `.md` files go to `raw/articles/` with `extraction_method: web-clipper` or `file-copy` (from step 3)
+   - `.pdf` files go to `raw/papers/`. After copying, extract text content using the Read tool (which supports PDFs with the `pages` parameter — read in batches of 20 pages). Write extracted text to a companion file at `raw/papers/[name]-extracted.md` with frontmatter noting the original PDF path, page count, and `extraction_method: pdf-extract`. During compile, agents read the extracted `.md` file, not the PDF binary.
+   - `.py`, `.js`, `.ts` and other code files go to `raw/repos/` with `extraction_method: file-copy`
+   - `.csv`, `.parquet`, `.jsonl`, `.xlsx` go to `raw/datasets/`. After copying, extract a brief schema summary (column names, row count, first 3 rows for CSV/JSONL) and prepend it as a markdown comment at the top of a companion `.md` file: `raw/datasets/[name]-schema.md` with `extraction_method: dataset-schema`. This schema file is what agents read during compile (they can't parse raw data formats directly).
+   - `.png`, `.jpg`, `.svg` and other image files go to `raw/images/` (no companion markdown, no extraction_method)
+   - Everything else goes to `raw/notes/` with `extraction_method: file-copy`
 
 **If directory path:**
 1. Glob for all files in the directory (non-recursive unless user specifies)
