@@ -99,6 +99,55 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
 
 **`.atlas/` vs `wiki/`:** `.atlas/` is machine state (hashes, registry, temp splits). `wiki/` is the human-readable output. The naming overlap between `concepts.json` (lookup table) and `concepts/` (wiki pages) is intentional — one is a flat registry for dedup and alias search, the other is the actual content.
 
+## Example: What a Compiled Concept Page Looks Like
+
+Here's a trimmed excerpt of `wiki/concepts/retrieval-augmented-generation.md` after compile synthesized it from three raw sources:
+
+```markdown
+---
+title: Retrieval-Augmented Generation
+slug: retrieval-augmented-generation
+aliases: [RAG, retrieval augmented generation]
+category: llm-patterns
+sources:
+  - raw/articles/lewis-2020-rag-paper.md
+  - raw/articles/pinecone-rag-guide.md
+  - raw/papers/gao-2023-rag-survey.pdf
+last_compiled: 2026-04-14
+---
+
+# Retrieval-Augmented Generation
+
+RAG augments an LLM's context window with relevant documents fetched from
+an external store at query time, rather than relying on parametric memory
+alone. This addresses two failure modes of vanilla LLMs: outdated training
+data and hallucination on long-tail facts.[^1]
+
+## Core Loop
+
+1. **Embed the query** into a dense vector ([[embeddings]])
+2. **Retrieve** top-k similar chunks from a [[vector-database]]
+3. **Augment** the prompt with retrieved context
+4. **Generate** the answer conditioned on both query and context
+
+## When RAG Beats Fine-Tuning
+
+Gao et al. find RAG is preferable when the knowledge base changes frequently
+or when source attribution matters for the end user.[^3] See also
+[[fine-tuning-vs-rag]] for the decision framework.
+
+## Related Concepts
+
+- [[chunking-strategies]] — how source documents get split before embedding
+- [[reranking]] — second-stage filtering of retrieved candidates
+- [[hybrid-search]] — combining dense and sparse retrieval
+
+[^1]: raw/articles/lewis-2020-rag-paper.md
+[^3]: raw/papers/gao-2023-rag-survey.pdf
+```
+
+Three things to notice: the frontmatter carries aliases (so `/atlas search "RAG"` finds this page), every factual claim cites back to a raw source file (so the Source Verifier can audit it during lint), and `[[wikilinks]]` connect to other concept pages (which Obsidian renders as a graph).
+
 ## Pairing with Mentor
 
 Atlas organizes knowledge. It does not judge whether a source is worth including, test your understanding, or check industry alignment — that's the companion [Mentor skill](https://github.com/magidbugazia/mentor).
@@ -146,6 +195,44 @@ The lint report has five sections, each with a different follow-up path:
 The key design: atlas finds the gaps and prepares the commands. Mentor evaluates whether to fill them. Atlas organizes the result. The user decides what to pursue.
 
 Atlas works without mentor. Lint still saves reports and auto-fixes structural issues. The `/mentor evaluate` commands in the report are suggestions, not dependencies. If mentor isn't installed, chase the leads manually.
+
+### Example Lint Report
+
+Excerpt from a real `wiki/lint/lint-2026-04-14.md` on a ~120-concept wiki:
+
+```markdown
+# Lint Report — 2026-04-14
+
+**Health:** NEEDS ATTENTION  (2 critical, 4 important, 1 unsupported claim)
+
+## Issues
+
+- **Broken wikilink** in `concepts/reranking.md:23` → `[[cross-encoder]]`
+  (no such concept; did you mean `[[cross-encoders]]`?) — auto-fix available
+- **Orphan page** `concepts/rag-fusion.md` — no other page links to it
+
+## Source Verification
+
+- `concepts/retrieval-augmented-generation.md:41` claims "Gao et al. (2023)
+  found RAG reduces hallucination by 42%." The cited source
+  (`raw/papers/gao-2023-rag-survey.pdf`) does NOT contain this number; the
+  paper discusses hallucination qualitatively but reports no 42% figure.
+  **Action:** edit the concept page to match what the source actually says.
+
+## New Article Candidates
+
+- **"Contextual compression"** — referenced by 7 concept pages, no dedicated
+  page exists. Run:
+  `/mentor evaluate "contextual compression" --context wiki/concepts/reranking.md wiki/concepts/chunking-strategies.md`
+
+## Research Questions
+
+- The wiki covers embedding models and vector DBs separately but never
+  answers "how do I choose an embedding dimension?" Run:
+  `/atlas query "how to choose embedding dimensions for RAG"`
+```
+
+Each section has a clear follow-up: issues get auto-fixed, verification failures get hand-edited, and the candidate and research sections include ready-to-run commands so nothing is lost between sessions.
 
 ## Limitations
 
