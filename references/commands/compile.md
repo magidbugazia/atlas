@@ -55,11 +55,11 @@ Filter the file list to text-based formats only (`.md`, `.txt`, `.py`, `.js`, `.
 For each text-based raw source in the file list, check line count via Bash (`wc -l`).
 
 If any single source exceeds 1000 lines:
-1. Read ONLY the file's structure in main context: first 50 lines (for title and table of contents) and Grep for heading patterns (`^## `, `^### `, `^# `) to identify section boundaries.
-2. Split the file into logical sections. Write each section to `.atlas/splits/[source-slug]-section-NN.md` with a header: `<!-- Split from [original filename], section: [heading] -->`. Create `.atlas/splits/` if it doesn't exist.
-3. Replace the original monolith in the file list with the section files for compilation. The original file stays in `raw/` untouched. The section files are working copies.
-4. Tell the user: "Split [filename] ([N] lines) into [M] sections for compilation. Original preserved in `raw/`."
-5. **Cleanup:** Before splitting, delete any existing files in `.atlas/splits/` from previous compiles via Bash: `rm -f .atlas/splits/[source-slug]-section-*.md`. This prevents stale section files from accumulating across compiles.
+1. **Cleanup first.** Delete any existing files from previous compiles for this source via Bash: `rm -f .atlas/splits/[source-slug]-section-*.md`. This prevents stale section files from accumulating and must happen BEFORE step 3 writes the new split files (otherwise the cleanup would erase the writes).
+2. Read ONLY the file's structure in main context: first 50 lines (for title and table of contents) and Grep for heading patterns (`^## `, `^### `, `^# `) to identify section boundaries.
+3. Split the file into logical sections. Write each section to `.atlas/splits/[source-slug]-section-NN.md` with a header: `<!-- Split from [original filename], section: [heading] -->`. Create `.atlas/splits/` if it doesn't exist.
+4. Replace the original monolith in the file list with the section files for compilation. The original file stays in `raw/` untouched. The section files are working copies.
+5. Tell the user: "Split [filename] ([N] lines) into [M] sections for compilation. Original preserved in `raw/`."
 
 ## Phase 3: Batch Planning
 
