@@ -130,13 +130,13 @@ Concepts consulted: [count]
 
 1. Query the wiki for data relevant to the chart description
 2. Generate a slug: `[topic-slug]-chart`
-3. Write a Python script to `/tmp/atlas_chart_[slug].py` that uses matplotlib to create the visualization
+3. Write a Python script to `/tmp/claude_scratch_atlas_chart_[slug].py` that uses matplotlib to create the visualization
 4. The script must:
    - Use data extracted from wiki concept pages (hardcoded into the script, not read at runtime)
    - Save output to `wiki/images/[slug].png`
    - Use a clean style (`plt.style.use('seaborn-v0_8-whitegrid')` or similar)
    - Include title, axis labels, and legend where appropriate
-5. Run the script via Bash: `python3 /tmp/atlas_chart_[slug].py`
-6. Delete the temp script after execution: `rm /tmp/atlas_chart_[slug].py`
+5. Run the script via Bash: `python3 /tmp/claude_scratch_atlas_chart_[slug].py`
+6. Delete the temp script after execution: `rm /tmp/claude_scratch_atlas_chart_[slug].py`
 7. If the chart is useful as a wiki asset, ask: "Chart saved to `wiki/images/[slug].png`. Should I create a concept page or report that references this chart?"
 8. Output: "Chart saved to `wiki/images/[slug].png`. View in Obsidian or any image viewer."
