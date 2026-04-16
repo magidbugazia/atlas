@@ -34,7 +34,7 @@ extraction_method: webfetch-verbatim-prompt
 
 The `extraction_method` field tells downstream steps (compile, lint Source Verifier, future you) the fidelity level of this source. Valid values: `webfetch-verbatim-prompt` (URL via WebFetch, best-effort verbatim but still LLM-mediated), `file-copy` (verbatim file copy, highest fidelity), `web-clipper` (file ingested from a browser clipper like Obsidian Web Clipper or SingleFile — verbatim), `pdf-extract` (text extracted from PDF via Read), `dataset-schema` (schema summary only, not the full data), `manual-drop` (file placed directly in `raw/` without frontmatter, backfilled during compile).
 
-6. If the extracted markdown contains image references (`![alt](url)`), attempt to download each image:
+7. If the extracted markdown contains image references (`![alt](url)`), attempt to download each image:
    - Skip decorative images, avatars, ads, logos, and tracking pixels (images under 5KB or with names like `logo`, `avatar`, `icon`, `pixel`, `tracking`).
    - For each significant image: use WebFetch to download it. Save to `raw/images/[article-slug]-[N].ext` where N is a counter and ext matches the original format.
    - Rewrite the markdown image references in the saved article to point to local paths: `![alt](../images/[article-slug]-[N].ext)`
