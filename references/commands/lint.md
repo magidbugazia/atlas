@@ -220,7 +220,14 @@ To explore: `/atlas query "[question text]"`
 
 ## Phase 3: Auto-Fix and Git Commit
 
-After presenting the report, ask: "Should I auto-fix the simple structural issues? (broken links, backlink asymmetry, orphan index entries, registry drift)"
+Phase 3 runs in two parts. Part A always runs and records that lint was performed. Part B is optional and only runs if the user approves auto-fixes. Splitting them guarantees the lint report is committed even when the user declines fixes, and that auto-fixes land in a separate, revertable commit.
+
+**Part A: Record the lint run (always runs).**
+1. Update `KB.md`: set `last_linted` to today, reset `compiles_since_lint` to 0, set `last_lint_health` to the overall-health value from the report.
+2. Git commit if in a repo: `git -C [KB root] add wiki/lint/ KB.md` then `git -C [KB root] commit -m "atlas: lint run - [HEALTH] - [YYYY-MM-DD]"`. This commit contains only the lint report and the KB.md metadata update.
+
+**Part B: Apply auto-fixes (opt-in).**
+After Part A, ask: "Should I auto-fix the simple structural issues? (broken links, backlink asymmetry, orphan index entries, registry drift)"
 
 If the user says yes:
 1. Fix broken links by removing or correcting them
@@ -228,10 +235,6 @@ If the user says yes:
 3. Add orphan pages to INDEX.md
 4. Remove ghost entries from INDEX.md
 5. Sync `.atlas/concepts.json` with actual concept files (add missing entries, remove entries with no file)
-6. Update `KB.md`: set `last_linted` to today, reset `compiles_since_lint` to 0
-7. Git commit if in a repo: `git -C [KB root] add wiki/ KB.md` then `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`
+6. Git commit if in a repo: `git -C [KB root] add wiki/ INDEX.md` then `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`. This is a second, independent commit so it can be reverted without losing the lint report.
 
-If the user says no:
-1. Update `KB.md`: set `last_linted` to today, reset `compiles_since_lint` to 0 (lint was run, even if fixes were declined)
-
-In both cases, the lint report at `wiki/lint/lint-YYYY-MM-DD.md` is already saved and will be included in the git commit.
+If the user says no, Phase 3 ends after Part A — no second commit is created.
