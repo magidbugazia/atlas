@@ -224,7 +224,7 @@ Phase 3 runs in two parts. Part A always runs and records that lint was performe
 
 **Part A: Record the lint run (always runs).**
 1. Update `KB.md`: set `last_linted` to today, reset `compiles_since_lint` to 0, set `last_lint_health` to the overall-health value from the report.
-2. Git commit if in a repo: `git -C [KB root] add wiki/lint/ KB.md` then `git -C [KB root] commit -m "atlas: lint run - [HEALTH] - [YYYY-MM-DD]"`. This commit contains only the lint report and the KB.md metadata update.
+2. Git commit if in a repo (detect by Globbing for `.git/` at the KB root, not by running `git rev-parse`): `git -C [KB root] add wiki/lint/ KB.md` then `git -C [KB root] commit -m "atlas: lint run - [HEALTH] - [YYYY-MM-DD]"`. This commit contains only the lint report and the KB.md metadata update.
 
 **Part B: Apply auto-fixes (opt-in).**
 After Part A, ask: "Should I auto-fix the simple structural issues? (broken links, backlink asymmetry, orphan index entries, registry drift)"
@@ -235,6 +235,6 @@ If the user says yes:
 3. Add orphan pages to INDEX.md
 4. Remove ghost entries from INDEX.md
 5. Sync `.atlas/concepts.json` with actual concept files (add missing entries, remove entries with no file)
-6. Git commit if in a repo: `git -C [KB root] add wiki/ INDEX.md` then `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`. This is a second, independent commit so it can be reverted without losing the lint report.
+6. Git commit if in a repo (detect by Globbing for `.git/` at the KB root, not by running `git rev-parse`): `git -C [KB root] add wiki/ INDEX.md` then `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`. This is a second, independent commit so it can be reverted without losing the lint report.
 
 If the user says no, Phase 3 ends after Part A — no second commit is created.

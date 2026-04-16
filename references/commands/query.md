@@ -63,5 +63,5 @@ If the user says yes:
 4. Create/update concept pages accordingly
 5. Update `.atlas/concepts.json` with any new concepts
 6. Update INDEX.md
-7. Git commit if in a repo: `git -C [KB root] add wiki/ KB.md && git -C [KB root] commit -m "atlas: query filed - [slug]"`
+7. Git commit if in a repo (detect by Globbing for `.git/` at the KB root, not by running `git rev-parse`): `git -C [KB root] add wiki/ KB.md && git -C [KB root] commit -m "atlas: query filed - [slug]"`
 8. Confirm what was updated

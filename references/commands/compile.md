@@ -326,7 +326,7 @@ After all agents finish:
 
 ## Phase 6: Git Commit
 
-Check if the KB root is inside a git repository via Bash: `git -C [KB root] rev-parse --is-inside-work-tree 2>/dev/null`
+Check if the KB root is inside a git repository by using Glob for `.git/` at the KB root (e.g., Glob pattern `.git` with `path` set to the KB root, or Glob `[KB root]/.git/HEAD`). Using Glob avoids running `git rev-parse`, which is not in the default allow-list and would prompt the user on every compile.
 
 If yes:
 1. Stage wiki changes: `git -C [KB root] add wiki/ KB.md`
