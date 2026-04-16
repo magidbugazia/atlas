@@ -103,13 +103,14 @@ KB root: [path]
 TASK:
 1. Glob wiki/concepts/ for all .md files.
 2. For each concept page, identify all source citations. These appear as "(Source: [filename])" in the text or in the "Sources" section at the bottom.
-3. SPOT-CHECK: For each concept page, select 2-3 specific factual claims that cite a source. Read the cited raw source file in raw/. Verify the source actually says what the concept page claims it says.
-4. Report findings.
+3. BEFORE verifying, detect exempt sources: for each cited source filename, check whether a summary page exists at wiki/summaries/[source-slug].md whose YAML frontmatter contains `exempt_from_raw_hash: true`. These summaries describe self-authored living documents (user-written references, not ingested external material). When a concept page cites such a source, do NOT look for it in raw/. Instead, read the matching summary page for verification, or mark the claim EXEMPT if word-level verification against the summary would be redundant. Never flag exempt sources as SOURCE MISSING.
+4. SPOT-CHECK: For each concept page, select 2-3 specific factual claims that cite a non-exempt source. Read the cited raw source file in raw/. Verify the source actually says what the concept page claims it says.
+5. Report findings.
 
 For each claim checked, report:
 - Concept page and the specific claim (quote it)
 - Cited source file
-- Verdict: SUPPORTED (source clearly says this), PARTIALLY SUPPORTED (source says something similar but the concept page overstates or simplifies), UNSUPPORTED (source does not say this, likely hallucinated), SOURCE MISSING (cited file doesn't exist)
+- Verdict: SUPPORTED (source clearly says this), PARTIALLY SUPPORTED (source says something similar but the concept page overstates or simplifies), UNSUPPORTED (source does not say this, likely hallucinated), SOURCE MISSING (cited file doesn't exist AND is not marked exempt), EXEMPT (cited source matches a summary page with `exempt_from_raw_hash: true`; self-authored, verification optional)
 - If PARTIALLY SUPPORTED or UNSUPPORTED: quote what the source actually says
 
 SCOPE:
