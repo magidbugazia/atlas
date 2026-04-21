@@ -151,10 +151,10 @@ Atlas organizes knowledge. It does not judge whether a source is worth including
 | Job | Tool |
 |-----|------|
 | Filter what's worth ingesting | `/mentor evaluate` |
-| Audit against job market demands | `/mentor audit` |
-| Test your understanding | `/mentor interview` |
 | Organize what passes evaluation | `/atlas ingest` + `/atlas compile` |
-| Internal consistency and hallucination audit | `/atlas lint` |
+| Internal consistency and hallucination audit | `/atlas lint` (surfaces `/mentor evaluate` candidates in its report) |
+
+Mentor has other commands (`/mentor audit`, `/mentor interview`) that are useful but do not plug into atlas's pipeline — see the mentor README for those.
 
 Atlas works standalone (lint still saves reports, leads chased manually). Mentor is domain-specific and can be adapted to any field — see the mentor skill README for the rewrite template.
 
