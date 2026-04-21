@@ -107,7 +107,7 @@ If `references/commands/query.md` does not exist, STOP and tell the user: "Atlas
 
 **Invocation:** `/atlas lint`
 
-**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/lint.md` now, then follow the instructions in that file.** It contains the complete operational logic for the lint command: Phase 1 (Compute Hub Concepts deterministically, then spawn 3 agents in PARALLEL: Consistency Checker, Connection Discoverer, Source Verifier), Phase 2 (Consolidate findings into wiki/lint/lint-YYYY-MM-DD.md), Phase 3 (Auto-Fix and Git Commit). The 3 lint agents run in PARALLEL, not sequentially.
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/lint.md` now, then follow the instructions in that file.** It contains the complete operational logic for the lint command: Phase 1 (Compute Hub Concepts deterministically, then spawn 5 agents in PARALLEL: Consistency Checker, Connection Discoverer, Source Verifier, Report Overlap Detector, Alias Coverage Checker), Phase 2 (Consolidate findings into wiki/lint/lint-YYYY-MM-DD.md), Phase 3 (Auto-Fix and Git Commit). The 5 lint agents run in PARALLEL, not sequentially.
 
 If `references/commands/lint.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/lint.md. The skill is partially installed. Cannot proceed."
 
