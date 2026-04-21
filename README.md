@@ -146,7 +146,7 @@ Three things to notice: the frontmatter carries aliases (so `/atlas search "RAG"
 
 ## Pairing with Mentor
 
-Atlas organizes knowledge. It does not judge whether a source is worth including, test your understanding, or check industry alignment — that's the companion [Mentor skill](https://github.com/magidbugazia/mentor).
+Atlas organizes knowledge. It does not judge whether a source is worth including before ingest — that's `/mentor evaluate` in the companion [Mentor skill](https://github.com/magidbugazia/mentor).
 
 | Job | Tool |
 |-----|------|
