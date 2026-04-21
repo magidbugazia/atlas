@@ -178,6 +178,8 @@ cd "/Users/you/Documents/AI Engineer Roadmap"
 
 `/atlas export` is KB-only. It does not render arbitrary markdown files. If you want to turn a standalone `.md` file (or a doc directory that isn't an atlas KB) into an HTML guide, invoke code-fluent directly in that directory instead.
 
+**Under the hood.** Export copies the report plus `KB.md` (renamed to `README.md`) into a slug-scoped temp directory at `/tmp/claude_scratch_atlas_export_<slug>/`, then spawns a subagent that runs code-fluent against that directory. The `KB.md` → `README.md` rename is how atlas hands project context (subject, categories, scope) to code-fluent without modifying code-fluent — it scans for a `README.md` at the root, and now finds one. See `references/commands/export.md` for the full rationale.
+
 Atlas works standalone (skip `/atlas export` if code-fluent isn't installed — the markdown reports from `/atlas query` are still readable in any editor). Code-fluent works standalone too (it operates on any directory, not just atlas KBs).
 
 ## Two Ingest Paths: Fidelity vs. Convenience

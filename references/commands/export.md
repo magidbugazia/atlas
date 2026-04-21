@@ -8,6 +8,14 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 
 `<report-slug>` matches the filename of a report in `wiki/reports/`, with or without the `.md` extension. Export does not research a topic. Use `/atlas query "question"` to produce a report first; then `/atlas export <slug>` to render it.
 
+## Why these mechanics
+
+Two design choices drive everything in this file — worth understanding before editing:
+
+1. **The slug is the identity thread.** One string (`conventional-rag-vs-markdown-context-stuffing`) names three things consistently: the input file (`wiki/reports/<slug>.md`), the temp workspace (`/tmp/claude_scratch_atlas_export_<slug>/`), and the output file (`wiki/reports/<slug>-guide.html`). Every phase that touches the filesystem uses the slug. Parallel exports of different reports do not collide because each has its own slug-scoped temp dir.
+
+2. **`KB.md` is renamed to `README.md` in the temp dir.** code-fluent is a directory-scanning skill — it builds a guide from whatever it finds in a folder. If handed just a lone report `.md`, it has no project context (no subject, no domain). code-fluent's Phase 1 looks for `README.md` at the target root to derive project identity. Atlas does not have a `README.md` — it has `KB.md`, which already holds the subject, categories, and scope. Renaming `KB.md` → `README.md` lets code-fluent read atlas's metadata natively, with no modification to code-fluent. This is the integration trick; do not remove it without replacing it with something equivalent.
+
 ## Phase 1: Locate the Report
 
 1. Parse `<report-slug>` from the invocation. If it ends in `.md`, strip the extension.
