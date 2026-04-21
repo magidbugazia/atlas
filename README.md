@@ -32,9 +32,7 @@ See SKILL.md for full operational details.
 | `search "term"` | Full-text search with alias expansion | `.atlas/concepts.json`, `wiki/concepts/`, `wiki/reports/` | nothing (display only) |
 | `lint` | Health check and hallucination audit | all `wiki/` files, `raw/`, `.atlas/concepts.json` | `wiki/lint/lint-YYYY-MM-DD.md`, fixes if approved, `KB.md` |
 | `status` | Quick stats | `KB.md`, `.atlas/*`, `wiki/INDEX.md` | nothing (display only) |
-| `export --slides "topic"` | Marp slide deck | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/slides/` |
-| `export --report "topic"` | Long-form report | `wiki/concepts/`, `.atlas/concepts.json` | `wiki/reports/` |
-| `export --chart "desc"` | matplotlib visualization | `wiki/concepts/` | `wiki/images/` |
+| `export <report-slug>` | Render an existing report as an interactive HTML guide via code-fluent | `wiki/reports/<slug>.md`, `KB.md` | `wiki/reports/<slug>-guide.html` |
 
 ## The Problem It Solves
 
@@ -89,10 +87,8 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
     ├── indexes/                   # Navigation — answers "what concepts exist in category Y?"
     ├── concepts/                  # Knowledge — answers "what is X?" One file per concept.
     ├── summaries/                 # Provenance — answers "what did source Z contribute?"
-    ├── reports/                   # Query answers and exported reports.
-    ├── lint/                      # Saved lint reports with actionable follow-up commands.
-    ├── slides/                    # Marp slide decks from export.
-    └── images/                    # Charts and downloaded images.
+    ├── reports/                   # Query answers plus rendered HTML guides from export.
+    └── lint/                      # Saved lint reports with actionable follow-up commands.
 ```
 
 **Navigation flow:** `INDEX.md` → `indexes/[category].md` → `concepts/[topic].md` → cross-links to related concepts. `summaries/` is the reverse lookup: raw source → which concepts it contributed to.
@@ -249,6 +245,25 @@ Atlas works without mentor. Lint still saves reports and auto-fixes structural i
 - **Single-user.** Atlas assumes one person writing to one repo. No multi-user sync, no concurrent-edit resolution, no real-time collaboration.
 - **No source evaluation built in.** Atlas ingests whatever you give it. Garbage sources in → garbage concept pages out. Use `/mentor evaluate` to filter before ingesting, and `/atlas lint` to catch hallucinations after.
 
+## Deferred Features
+
+Features that were considered, scoped, and explicitly not built. Each is deferred rather than rejected — the triggers for revisiting them are documented so future-you knows when to pick them up.
+
+### Browse-mode view (`--view`)
+
+A non-linear interactive HTML exploration surface for a whole KB. Left sidebar lists every concept (searchable, filterable by category). Center shows a force-directed cross-reference graph. Click a concept to render it in a right panel. Top bar filters by category or tag.
+
+Today's atlas outputs (`/atlas query`, `/atlas export`) are all **teach-paradigm** — synthesized answers meant to be read top to bottom. Browse-paradigm is fundamentally different: exploration, not reading. For a curated personal KB whose owner already roughly knows the contents, teach is the 90% path. Browse is the 10% insight-discovery path, mostly served today by `wiki/INDEX.md` + `/atlas search` + grep.
+
+**Reserved naming.** The flag name `--view` is reserved for this feature. Do not use it for anything else. If it ever gets built, `/atlas view` or `/atlas export --view <slug>` is the semantically correct invocation.
+
+**When to revisit:**
+- You start wishing you could "see everything laid out" more than once a week.
+- KB grows past ~200 concepts and teach outputs can't show enough graph structure.
+- You want to present or demo the KB to someone else — browse view adds real value there.
+
+**Source of idea.** Inspired by an X post on 2026-04-02 about dynamic research paper visualizations.
+
 ## Always-On Setup (Optional)
 
 By default, atlas only acts when you explicitly invoke `/atlas <command>`. If you want atlas to surface itself automatically whenever you grep or glob inside a KB directory, install the `PreToolUse` hook. With the hook installed, every time Claude is about to call Glob or Grep in a directory containing a `KB.md` (in cwd or up to 3 parent directories), Claude sees an injected notification telling it the KB exists and to consider `/atlas search` or `/atlas query` first. The hook never blocks; it only adds context.
@@ -303,9 +318,9 @@ atlas/
         ├── ingest.md                 # Add raw sources
         ├── compile.md                # Build wiki (3 sequential agents)
         ├── query.md                  # Hierarchical retrieval
-        ├── lint.md                   # Health check (3 parallel agents)
+        ├── lint.md                   # Health check (5 parallel agents)
         ├── status.md                 # Quick stats
-        ├── export.md                 # Slides, reports, charts
+        ├── export.md                 # Render a report as an HTML guide via code-fluent
         └── search.md                 # Alias-aware full-text search
 ```
 
