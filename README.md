@@ -158,6 +158,30 @@ Atlas organizes knowledge. It does not judge whether a source is worth including
 
 Atlas works standalone (lint still saves reports, leads chased manually). Mentor is domain-specific and can be adapted to any field — see the mentor skill README for the rewrite template.
 
+## Pairing with Code Fluent
+
+Atlas produces markdown. It does not produce interactive HTML — that's the companion [Code Fluent skill](https://github.com/magidbugazia/code-fluent). `/atlas export <slug>` delegates rendering to code-fluent via a subagent, which means any improvement to code-fluent's doc-path automatically improves atlas's exports.
+
+| Job | Tool |
+|-----|------|
+| Research a question against the wiki, save a markdown answer | `/atlas query "question"` |
+| Render an existing report as an interactive HTML guide | `/atlas export <report-slug>` |
+| Render any directory of docs or code that isn't a KB | code-fluent directly — `cd` to the dir, say "explain this project" / "break this down" / "document this research" |
+
+**How `/atlas export` works.** It takes a **report slug** (filename without `.md`), not a file path. Atlas must find a `KB.md` in the current directory (or up to 3 parents) to locate the knowledge base. Typical use:
+
+```bash
+cd "/Users/you/Documents/AI Engineer Roadmap"
+/atlas query "What are the tradeoffs between RAG and fine-tuning?"
+# atlas writes wiki/reports/rag-vs-fine-tuning.md
+/atlas export rag-vs-fine-tuning
+# atlas produces wiki/reports/rag-vs-fine-tuning-guide.html
+```
+
+`/atlas export` is KB-only. It does not render arbitrary markdown files. If you want to turn a standalone `.md` file (or a doc directory that isn't an atlas KB) into an HTML guide, invoke code-fluent directly in that directory instead.
+
+Atlas works standalone (skip `/atlas export` if code-fluent isn't installed — the markdown reports from `/atlas query` are still readable in any editor). Code-fluent works standalone too (it operates on any directory, not just atlas KBs).
+
 ## Two Ingest Paths: Fidelity vs. Convenience
 
 Atlas ingest has two paths for web content, and you should pick based on how you'll use the source.
