@@ -1,142 +1,79 @@
 # Command: Export
 
-This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user invokes `/atlas export`. It contains the complete operational logic for the export command across all three sub-modes (slides, report, chart).
+This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user invokes `/atlas export`. It renders an existing report from `wiki/reports/` as an interactive HTML guide by delegating to the code-fluent skill.
 
 **Prerequisite:** Phase 0 (auto-detect knowledge base) must have already run from SKILL.md before this file is loaded. If it has not, STOP and return to SKILL.md.
 
-**Invocation:** `/atlas export --slides "topic"` or `/atlas export --report "topic"` or `/atlas export --chart "description"`
+**Invocation:** `/atlas export <report-slug>`
 
-## Phase 1: Research (same for all formats)
+`<report-slug>` matches the filename of a report in `wiki/reports/`, with or without the `.md` extension. Export does not research a topic. Use `/atlas query "question"` to produce a report first; then `/atlas export <slug>` to render it.
 
-1. Read `wiki/INDEX.md`
-2. Read `.atlas/concepts.json` for aliases
-3. Identify concept pages relevant to the topic (using alias-aware matching)
-4. Grep `wiki/concepts/` for the topic terms and their aliases
-5. Read relevant articles using the same scale-adaptive pattern as `/atlas query`:
-   - **Small wiki (fewer than 50 total concepts) or 5 or fewer relevant concepts:** read concept pages directly in main context.
-   - **Medium wiki (50-150 concepts) with 6+ relevant concepts:** spawn a single research agent to read all relevant concepts and return synthesized notes for the export. Do NOT load 6+ files into main context.
-   - **Large wiki (150+ concepts) with 3+ relevant categories:** spawn one research agent PER relevant category in PARALLEL. Each agent reads its category's sub-index, identifies relevant concepts within that category, reads them in full, and returns category-scoped notes (max 500 words per agent). The main context synthesizes the agent notes into the export.
+## Phase 1: Locate the Report
 
-## Phase 2: Branch on Sub-Mode
+1. Parse `<report-slug>` from the invocation. If it ends in `.md`, strip the extension.
+2. Look for `wiki/reports/<report-slug>.md` (relative to the KB root detected in Phase 0).
+3. If the file does not exist:
+   - List the contents of `wiki/reports/` (sort by mtime, newest first, cap at 10 filenames).
+   - Tell the user: "No report found at `wiki/reports/<slug>.md`. Available reports: ..."
+   - STOP. Do not proceed.
+4. Read the report file fully. Capture its H1 title (`# ...`) for the guide title. If no H1 exists, use the slug humanized (replace hyphens with spaces, title-case).
 
-Based on the flag passed in the invocation:
-- `--slides` → execute Phase 2a only, skip Phase 2b and Phase 2c
-- `--report` → execute Phase 2b only, skip Phase 2a and Phase 2c
-- `--chart` → execute Phase 2c only, skip Phase 2a and Phase 2b
+## Phase 2: Prepare the Rendering Directory
 
-If no sub-mode flag was passed, STOP and ask the user which format they want.
+code-fluent operates on directories, not single files. Set up a minimal temp directory that gives code-fluent exactly the content it needs and nothing more.
 
-## Phase 2a: Slides (--slides)
+1. Compute the temp directory path: `/tmp/claude_scratch_atlas_export_<slug>/`.
+2. If the temp directory already exists, remove it first: `rm -rf /tmp/claude_scratch_atlas_export_<slug>/`.
+3. Create the temp directory.
+4. Copy `wiki/reports/<slug>.md` into the temp directory, preserving the filename.
+5. Copy the KB's `KB.md` into the temp directory, but **rename the copy to `README.md`**. This gives code-fluent project-level context and triggers its "top-level README detection" in Phase 1.
+6. Do NOT copy concept pages, other reports, INDEX.md, or `.atlas/` metadata. The guide renders this one report, not the whole wiki.
 
-1. Generate a slug: `[topic-slug]-slides`
-2. Write a Marp-formatted markdown file at `wiki/slides/[slug].md`:
+## Phase 3: Invoke code-fluent via Subagent
 
-```markdown
----
-marp: true
-theme: default
-paginate: true
----
+Spawn a general-purpose subagent. The subagent reads code-fluent's SKILL.md and executes it against the temp directory, then returns the path to the built guide.
 
-# [Topic Title]
+Use this exact prompt (substitute `<TEMP_DIR>`, `<SLUG>`, and `<REPORT_TITLE>` with computed values):
 
-[Subject] Knowledge Base
-[Today's date]
+```
+You are rendering an atlas report as an interactive HTML guide by executing the code-fluent skill.
 
----
+1. Read /Users/magidbugazia/.claude/skills/code-fluent/SKILL.md in full. Also read /Users/magidbugazia/.claude/skills/code-fluent/templates/guide.html for JSON component schemas.
 
-## [Concept 1 Title]
+2. Execute code-fluent's Phase 1 (Scan and Route) against the directory <TEMP_DIR>. The directory contains a single report markdown file and a README.md (the knowledge base's KB.md, renamed for context). Routing will resolve to doc-path — zero source-code files are present.
 
-- [Key point 1]
-- [Key point 2]
-- [Key point 3]
+3. Skip code-fluent's AskUserQuestion audience step. Do not attempt to ask the user. Use this audience label: "Technical reader, no role-specific tailoring." Do not pitch content to engineers, data scientists, PMs, or business analysts. Use the report's own technical vocabulary. Explain domain-specific or project-specific terms inline via data-definition spans. Do not simplify for a lay reader.
 
----
+4. Execute Phase 2 (Gather Context) using only the README.md in <TEMP_DIR>. Do not attempt to read conversation history, memory files, or git history — none are relevant to this render.
 
-## [Concept 2 Title]
+5. Execute Phase 3 (Build the Guide) using doc-path module types only (overview, reference, narrative, framework, assessment). 5-7 modules. The report title is "<REPORT_TITLE>"; use it as the --title argument and as the guide's H1. Use <SLUG> as the --nav argument truncated to the first 2-3 words.
 
-- [Key point 1]
-- [Key point 2]
+6. Derive the output filename as <SLUG>-guide.html. Write modules.html in <TEMP_DIR>, run build.py to produce <TEMP_DIR>/<SLUG>-guide.html, then delete modules.html. Do NOT open the browser.
 
----
-
-[Continue for each relevant concept, one slide per concept]
-
----
-
-## Summary
-
-[3-5 bullet points synthesizing the key takeaways across all slides]
-
----
-
-## Sources
-
-[List concept pages consulted]
+7. Return the absolute path to the generated guide.html. Also report any rule violations or places the code-fluent instructions were unclear when applied here.
 ```
 
-3. Rules for slides:
-   - Maximum 5 bullet points per slide
-   - One concept per slide
-   - Use plain language, no jargon without inline definition
-   - Total slides: 8-15 depending on topic breadth
+The subagent returns the absolute path to the built guide. If the subagent reports that code-fluent's instructions were unclear or that rule violations occurred, surface those to the user verbatim at the end of export.
 
-4. Output: "Slides saved to `wiki/slides/[slug].md`. View in Obsidian with the Marp plugin, or export to HTML/PDF with: `npx @marp-team/marp-cli wiki/slides/[slug].md --html`"
+## Phase 4: Finalize Output
 
-## Phase 2b: Report (--report)
+1. Move the built guide from the temp directory to the KB's `wiki/reports/` directory:
+   `mv /tmp/claude_scratch_atlas_export_<slug>/<slug>-guide.html wiki/reports/<slug>-guide.html`
+2. Remove the temp directory: `rm -rf /tmp/claude_scratch_atlas_export_<slug>/`
+3. Per atlas Rule 15, if the KB root is a git repo, stage `wiki/reports/<slug>-guide.html` and commit with message: `Export guide: <slug>`. If not a git repo, skip silently.
+4. Output to the user:
 
-1. Generate a slug: `[topic-slug]-report`
-2. Write a long-form report at `wiki/reports/[slug].md`:
+   ```
+   Guide saved to wiki/reports/<slug>-guide.html
+   Source report: wiki/reports/<slug>.md
+   Open: open wiki/reports/<slug>-guide.html
+   ```
 
-```markdown
-# [Topic Title]: A Comprehensive Report
+   If the subagent surfaced any issues in Phase 3, append them below this output under a `## Notes from rendering` heading.
 
-Generated: [today's date]
-Knowledge base: [Subject]
-Concepts consulted: [count]
+## Rules for Export
 
----
-
-## Executive Summary
-
-[3-5 sentences capturing the key findings]
-
-## [Section 1 Heading]
-
-[Detailed content with citations to concept pages]
-
-## [Section 2 Heading]
-
-[Continue...]
-
-## [Additional sections as needed]
-
-## Conclusion
-
-[Key takeaways, open questions, suggested next steps]
-
----
-
-## Sources
-
-[Every concept page and raw source consulted, with links]
-```
-
-3. Target length: 1500-3000 words depending on topic breadth
-4. Every major claim must cite the concept page it comes from
-5. Offer to file new concepts back into wiki (same as Query Phase 3)
-
-## Phase 2c: Chart (--chart)
-
-1. Query the wiki for data relevant to the chart description
-2. Generate a slug: `[topic-slug]-chart`
-3. Write a Python script to `/tmp/claude_scratch_atlas_chart_[slug].py` that uses matplotlib to create the visualization
-4. The script must:
-   - Use data extracted from wiki concept pages (hardcoded into the script, not read at runtime)
-   - Save output to `wiki/images/[slug].png`
-   - Use a clean style (`plt.style.use('seaborn-v0_8-whitegrid')` or similar)
-   - Include title, axis labels, and legend where appropriate
-5. Run the script via Bash: `python3 /tmp/claude_scratch_atlas_chart_[slug].py`
-6. Delete the temp script after execution: `rm /tmp/claude_scratch_atlas_chart_[slug].py`
-7. If the chart is useful as a wiki asset, ask: "Chart saved to `wiki/images/[slug].png`. Should I create a concept page or report that references this chart?"
-8. Output: "Chart saved to `wiki/images/[slug].png`. View in Obsidian or any image viewer."
+1. Export does not research. If the user passes a topic string instead of an existing report slug (e.g., `/atlas export "RAG tradeoffs"` with no matching file), treat the missing-file path in Phase 1 step 3 and suggest they run `/atlas query` first.
+2. Do not modify the source report markdown. The guide is a rendering; the source stays canonical.
+3. Do not copy wiki concept pages into the temp directory. The report already synthesized them. Including them risks the guide drifting into "whole KB" territory, which is a different product (reserved as Position 3 browse-mode view — not implemented).
+4. If the subagent fails or times out, report the failure with the agent's error message. Do not silently fall back to a different rendering path.

@@ -1,7 +1,7 @@
 ---
 name: atlas
 description: Knowledge base builder - collects raw material, compiles an interconnected wiki, maintains indexes, answers queries, and lints for consistency. Pair with /mentor for resource evaluation and industry alignment.
-argument-hint: "init <subject> | ingest <URL | path> | compile [--incremental] | query \"question\" | search \"term\" | lint | status | export --slides|--report|--chart \"topic\""
+argument-hint: "init <subject> | ingest <URL | path> | compile [--incremental] | query \"question\" | search \"term\" | lint | status | export <report-slug>"
 allowed-tools: Read Write Edit Grep Glob Bash Task WebFetch WebSearch AskUserQuestion
 disable-model-invocation: true
 ---
@@ -23,9 +23,7 @@ You do NOT evaluate whether a source is worth including (that is `/mentor evalua
 | `/atlas query "question"` | Research question against wiki, write answer to `wiki/reports/` |
 | `/atlas lint` | Health check: contradictions, broken links, missing pages, connections |
 | `/atlas status` | Stats: article counts, last compile date, health indicators |
-| `/atlas export --slides "topic"` | Generate Marp slide deck from wiki content |
-| `/atlas export --report "topic"` | Generate long-form report from wiki content |
-| `/atlas export --chart "description"` | Generate matplotlib visualization from wiki data |
+| `/atlas export <report-slug>` | Render an existing report from `wiki/reports/` as an interactive HTML guide via code-fluent |
 | `/atlas search "term"` | Search wiki full text with alias expansion, return matches |
 
 Optional always-on KB awareness via a `PreToolUse` hook is available. See `~/.claude/skills/atlas/README.md` § Always-On Setup. The hook is opt-in and not required for atlas's core commands to work.
@@ -125,9 +123,11 @@ If `references/commands/status.md` does not exist, STOP and tell the user: "Atla
 
 ## Command: Export
 
-**Invocation:** `/atlas export --slides "topic"` or `/atlas export --report "topic"` or `/atlas export --chart "description"`
+**Invocation:** `/atlas export <report-slug>`
 
-**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/export.md` now, then follow the instructions in that file.** It contains the complete operational logic for the export command: Phase 1 (Research, shared across all sub-modes), Phase 2a (Slides via Marp), Phase 2b (Report long-form), Phase 2c (Chart via matplotlib script). Determine which sub-mode (`--slides`, `--report`, or `--chart`) was passed and follow the matching phase.
+Renders an existing report from `wiki/reports/` as an interactive HTML guide by delegating to the code-fluent skill. Export does not research a topic. Use `/atlas query` first to produce a report.
+
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/export.md` now, then follow the instructions in that file.** It contains the complete operational logic for the export command: Phase 1 (Locate the report in `wiki/reports/`), Phase 2 (Prepare a minimal temp directory with the report plus `KB.md` renamed to `README.md`), Phase 3 (Spawn a subagent that reads code-fluent's SKILL.md and executes it against the temp directory, with audience pinned to "Technical reader, no role-specific tailoring"), Phase 4 (Move the built guide to `wiki/reports/<slug>-guide.html`, clean up, git commit).
 
 If `references/commands/export.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/export.md. The skill is partially installed. Cannot proceed."
 
