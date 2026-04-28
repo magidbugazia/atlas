@@ -129,11 +129,12 @@ KB root: [path]
 
 TASK:
 1. Glob wiki/reports/ for all .md files. If the directory does not exist or has fewer than 3 reports, report "Not enough reports to analyze (need at least 3)" and stop.
-2. For each report, read only the top ~40 lines. Extract:
-   - The H1 title (the question it answers)
-   - The `Generated:` date
-   - The `Concepts consulted:` list (if present)
-   - The filename slug
+2. For each report, read only the top ~40 lines. Reports use YAML frontmatter (the canonical metadata block fenced by `---` lines at the top of the file). Extract from frontmatter:
+   - `title` (the question it answers; falls back to the H1 if frontmatter is absent on a legacy report)
+   - `generated` date (falls back to a `Generated:` header line on legacy reports)
+   - `concepts_consulted` list (falls back to the in-body `Concepts consulted:` line on legacy reports; the in-body line may be inline-comma-separated or bulleted)
+   - `slug` (falls back to the filename without `.md`)
+   - Optional: `parent_report`, `revision_note`, `last_updated` — useful for cluster reasoning.
 3. Build overlap signals WITHOUT reading full bodies yet:
    - Slug similarity: token-level Jaccard on slug words (e.g., `rag-vs-finetuning-tradeoffs` and `tradeoffs-rag-finetuning` share {rag, finetuning, tradeoffs})
    - Concept overlap: Jaccard on the concepts-consulted lists

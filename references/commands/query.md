@@ -27,26 +27,41 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 ## Phase 2: Synthesize
 
 1. Generate a slug for the question: lowercase, hyphens, max 50 chars. Example: "rag-vs-finetuning-tradeoffs"
-2. Write the answer as a markdown file at `wiki/reports/[slug].md`:
+2. Write the answer as a markdown file at `wiki/reports/[slug].md`. Reports use YAML frontmatter as the canonical metadata block (matching concept and summary pages). Do NOT add a redundant header-style block (`Generated:` / `Concepts consulted:` lines) below the H1 — that is the legacy format. Do NOT add a trailing `## Sources Consulted` section — `concepts_consulted` in frontmatter is the canonical record, and report bodies already cite each concept inline as clickable links throughout the prose, so a footer list adds no navigation value and creates a drift-prone second source of truth.
 
 ```markdown
+---
+title: "[Question as title, quote it if it contains a colon, question mark, or apostrophe]"
+slug: [slug]
+generated: [today's date, YYYY-MM-DD]
+last_updated: [today's date, YYYY-MM-DD]
+status: reviewed
+concepts_consulted:
+  - "../concepts/[slug-1].md"
+  - "../concepts/[slug-2].md"
+  - "../concepts/[slug-3].md"
+---
+
 # [Question as title]
 
-Generated: [today's date]
-Concepts consulted: [list with links to each concept page read]
-
----
-
 [Synthesized answer. Structure with headings if the answer is complex.
-Every major claim should cite the concept page it comes from:
-"Attention mechanisms allow... ([Attention Mechanisms](../concepts/attention-mechanisms.md))"]
+Every major claim should cite the concept page it comes from inline as a
+clickable markdown link:
+"Attention mechanisms allow... ([Attention Mechanisms](../concepts/attention-mechanisms.md))"
 
----
-
-## Sources Consulted
-
-[Bulleted list of every wiki article read to produce this answer, with links]
+The set of links cited inline must match `concepts_consulted` in frontmatter.]
 ```
+
+**YAML field semantics:**
+- `title`: the H1 text. Quote with double quotes whenever the title contains `:`, `?`, `'`, `"`, `#`, or starts/ends with whitespace.
+- `slug`: the filename without `.md`. Must match the file's actual name on disk.
+- `generated`: the date the report was first written. Never changes after creation.
+- `last_updated`: the date of the most recent edit. Equals `generated` on creation. Bump whenever the report body is materially revised.
+- `status`: `reviewed` for fresh atlas-generated reports (you wrote them, you stand behind them). Use `draft` only when the report is incomplete and the user has been told. Use `review_pending` only when a later edit introduced material that warrants a re-read.
+- `concepts_consulted`: machine-readable list of relative paths to every concept page actually read. This is the canonical record of what the report drew from. Lint Agent 4 (Report Overlap Detector) reads this directly for cluster Jaccard analysis. Every concept-page link cited inline in the body should appear here; every entry here should appear at least once as an inline citation in the body.
+- Optional fields: `revision_note` (one-line summary of the most recent edit, when `last_updated > generated`), `parent_report` (filename of a parent report when this is a satellite/recall card).
+
+**When updating an existing report** (e.g., after a `--rerun` or follow-up): update `last_updated`, optionally add a `revision_note`, leave `generated` alone. Update `concepts_consulted` if the revision pulled in new concept pages. Do not duplicate metadata in the body.
 
 3. Display the report content to the user directly in the terminal output.
 
