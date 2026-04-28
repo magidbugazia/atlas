@@ -55,7 +55,7 @@ COMPLETENESS:
 FRONTMATTER HEALTH:
 - Missing frontmatter: any concept or summary page without a YAML frontmatter block at the top. Should auto-fix on next compile via Phase 1.5 backfill, but flag here so the user knows
 - Stale frontmatter: pages where `last_updated` is more than 90 days old. Report the page name, last_updated date, and current age in days
-- Pages flagged needs_update: list every page with `status: needs_update` and how long it has held that status. These need human attention
+- Pages flagged review_pending: list every page with `status: review_pending` and how long it has held that status. These need human attention. (Legacy `status: needs_update` should also be flagged here — it is the pre-rename name and any page still carrying it predates the rename.)
 - Source-count drift: pages where the `source_count` value in frontmatter does not match the actual number of entries in the Sources section
 
 For each issue report:
@@ -230,7 +230,7 @@ These pages have the most inbound links from other concept pages. Errors on hub 
 | 4 | [Concept Name](../concepts/slug.md) | N |
 | 5 | [Concept Name](../concepts/slug.md) | N |
 
-[If any hub concept has status: needs_update or has stale frontmatter, flag it inline next to the row.]
+[If any hub concept has status: review_pending or has stale frontmatter, flag it inline next to the row.]
 
 ---
 
