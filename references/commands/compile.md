@@ -65,15 +65,17 @@ If any single source exceeds 1000 lines:
 
 Count total lines across ALL files in the compile list via Bash (`wc -l` on each file, sum the results).
 
+**Why three paths exist.** The path choice exists to manage main-context window pressure. Reading a raw source in main context costs tokens proportional to source size; spawning subagents to read instead protects main context but costs orchestration overhead and requires the source to be re-read. The right path depends on how much of the new content can be absorbed in main context without crowding out the conversation, and whether the source is already in main context from a chained `/atlas ingest` in the same session (a common pattern — ingest reads the source for Phase 2 quick analysis, so it is already loaded by the time compile runs).
+
 **Small compile (ALL conditions must be true):**
 (a) Incremental compile, not full rebuild
-(b) Exactly 1-2 new sources
-(c) Each new source is under 200 lines (check via Bash `wc -l` BEFORE deciding)
-(d) Total lines across new sources is under 400
-If ALL conditions are true, handle directly without agents (see "Small Compile Path" below).
+(b) 1-3 new sources
+(c) Total lines across new sources is under 2000
+
+If ALL conditions are true, handle directly without agents (see "Small Compile Path" below). The 2000-line ceiling is sized for the realistic ingest+compile chain: a single ingested source up to ~1500 lines, or two-to-three smaller sources, can be processed in main context without spawning subagents. The previous 200-lines-per-source / 400-total cap was too tight for the chained-ingest case — it forced subagent spawning on already-loaded sources, which is wasted orchestration.
 
 **Standard compile (total lines across all sources <= 8000):**
-Process all sources in a single agent round (see "Standard Compile Path" below).
+Process all sources in a single agent round (see "Standard Compile Path" below). Use this path for incremental compiles that exceed Small's 2000-line ceiling, OR for any full compile (which by definition processes all sources). The Standard Path's "Context Window Protection" rule (subagents read raw sources, main context only orchestrates) applies cleanly here because the sources are NOT already loaded in main context — full compile starts from a clean slate, and oversized incremental compiles are pulling in sources beyond what main context should hold.
 
 **Large compile (total lines across all sources > 8000):**
 Split the file list into batches of ~10 sources each (keeping related files together when possible by grouping files from the same `raw/` subdirectory). Process each batch sequentially. Each batch after the first reads existing concept pages from prior batches before writing, so knowledge accumulates correctly. See "Large Compile Path" below.

@@ -69,8 +69,8 @@ After saving the raw source:
 ## Phase 3: Update Metadata
 
 1. Update `KB.md`: increment `raw_count`.
-2. Compute content hash of the new file via Bash: `shasum -a 256 [filepath]`
-3. Read `.atlas/hashes.json`, add the new entry (`"relative/path": "hash"`), write it back.
+
+**Do NOT touch `.atlas/hashes.json` here.** Hashes belong to compile, not ingest. The `hashes.json` file tracks which raw sources have already been processed into the wiki — it is the input to compile's incremental change-detection logic. If ingest writes a hash, the very next `/atlas compile --incremental` will see a stored hash that exactly matches the current hash and conclude "already processed, skip" — even though zero wiki pages exist for the source. Hash writes happen exclusively in compile's Phase 5, after the source has actually been turned into concept pages and summaries. The next compile's Phase 1 will compute the current hash from scratch, see no stored hash, and correctly include the file in its compile list.
 
 ## Phase 4: Output
 
