@@ -1,6 +1,6 @@
 # Command: Lint
 
-This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user invokes `/atlas lint`. It contains the complete operational logic for the lint command, including the five parallel agent prompts.
+This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user invokes `/atlas lint`. It contains the complete operational logic for the lint command, including the six parallel agent prompts.
 
 **Prerequisite:** Phase 0 (auto-detect knowledge base) must have already run from SKILL.md before this file is loaded. If it has not, STOP and return to SKILL.md.
 
@@ -19,7 +19,9 @@ This step identifies which concept pages are "load-bearing" by counting how many
 
 This step is fast: Glob + Grep across a few hundred small files takes well under a second. It does not need an agent.
 
-**Step B: Launch 5 agents in PARALLEL.**
+**Step B: Launch 6 agents in PARALLEL.**
+
+If `wiki/reports/` is empty or does not exist, skip Agent 6 (Report Health Auditor) and launch only the first five. Agent 6 has no work to do without saved reports.
 
 **Agent 1: Consistency Checker**
 ```
@@ -199,9 +201,86 @@ For each concept with findings, report:
 If every concept has adequate coverage, report "Alias coverage healthy — no gaps detected."
 ```
 
+**Agent 6: Report Health Auditor**
+```
+You are auditing the freshness of saved query reports against recent compile activity. A report becomes stale-by-content when the wiki has materially changed since the report was synthesized — either a cited concept page was flagged for human review, or a new concept page now exists that the report's body discusses without linking to. The report's links still resolve; the prose is what's behind. Your job is to surface candidates for re-synthesis. You do NOT edit anything.
+
+KB root: [path]
+
+INPUTS TO READ:
+1. Glob `wiki/reports/*.md` for all saved reports. If the directory is empty or has zero reports, output "No saved reports — nothing to audit." and stop.
+2. Glob `.atlas/compile-runs/*.json` for compile manifests written since the last lint run. Determine "since the last lint" using `KB.md`'s `last_linted` field: include any manifest whose `compile_completed` timestamp is strictly after `last_linted`. If `last_linted` is empty (this KB has never been linted), include the most recent 10 manifests. If `.atlas/compile-runs/` is empty or missing, output "No compile manifests found — Agent 6 has no change set to compare against." and stop.
+3. Read `.atlas/concepts.json` for the concept registry (display_name + aliases per slug).
+
+ALGORITHM:
+
+**Step 1: Aggregate the change set across the in-scope manifests.**
+- `created_slugs` = union of every `created` array across manifests.
+- `review_pending_slugs` = union of every `review_pending_now` array.
+- Earliest `compile_started` timestamp across the in-scope manifests = `change_window_start`. Latest `compile_completed` timestamp = `change_window_end`.
+
+**Step 2: Build the new-concept candidate-alias list (Guard-rail 1: alias quality bar).**
+For each slug in `created_slugs`, look up its `display_name` and `aliases` in `.atlas/concepts.json`. For each candidate phrase (display_name and each alias), apply the filter:
+- ACCEPT if the phrase has 2+ whitespace-separated tokens (e.g., "human in the loop", "durable execution", "agent multi-tenancy").
+- ACCEPT if the phrase is a hyphenated compound with 2+ semantic parts (e.g., "human-in-the-loop", "agent-multi-tenancy", "cron-for-agents").
+- ACCEPT if the phrase is an acronym of 4+ characters and is not a common English word (e.g., "HITL", "RBAC"). Reject 2-3 char acronyms ("AI", "ML") because of high collision rates with prose.
+- REJECT if the phrase is a single common noun appearing in this stoplist: `memory`, `middleware`, `cron`, `webhook`, `runtime`, `harness`, `sandbox`, `evaluation`, `tracing`, `observability`, `multi-tenant`, `agent`, `interrupt`, `checkpoint`, `tool`, `loop`, `state`, `cache`, `pipeline`, `chain`. (These collide with general prose usage.)
+
+If a created concept's only matching candidates all get rejected, that concept does not contribute to the new-concept arm. Note this inline as "skipped: only generic-noun aliases" so the user can see why the concept isn't surfacing matches.
+
+**Step 3: For each report, run the two arms.**
+For each `wiki/reports/[slug].md`:
+1. Parse the YAML frontmatter to extract `title`, `last_updated`, `concepts_consulted`, `status`, and the existing `revision_note` if any.
+2. Read the body (everything after the frontmatter close).
+
+**Cascade arm.**
+- For each entry in `concepts_consulted`, derive the cited concept slug (the filename without `.md`) and intersect with `review_pending_slugs`.
+- If any intersection is non-empty, flag the report. Cite each `review_pending` concept slug.
+
+**New-concept body-grep arm.**
+- Apply Guard-rail 2: skip this arm if `report.last_updated >= change_window_start` (strict less-than required for this arm to fire). A report that was written or refreshed during or after the compile window has already incorporated the new state.
+- For each accepted candidate alias from Step 2, search the report body case-insensitively. Include word-boundary anchors so "HITL" doesn't match "HITLer" and "cron for agents" doesn't match arbitrary "cron" usage.
+- For each match, capture the matched line and a quoted excerpt (one full sentence containing the match, or 80 chars on each side if the sentence is unclear).
+- If any match found, flag the report. Cite each new-concept slug whose alias matched, with the evidence quote.
+
+**Step 4: Deduplicate and structure output.**
+A report flagged by both arms is one entry with both `cascade` and `new_concept` reasons listed. Output structure:
+
+```
+{
+  "reports_audited": <int>,
+  "manifests_in_scope": <int>,
+  "change_window": {"start": "<iso>", "end": "<iso>"},
+  "flagged": [
+    {
+      "report_path": "wiki/reports/<slug>.md",
+      "report_title": "<H1 or frontmatter title>",
+      "report_last_updated": "<YYYY-MM-DD>",
+      "report_current_status": "<reviewed|draft|review_pending>",
+      "flag_reasons": [
+        {"arm": "cascade", "cited_slug": "<concept-slug>", "evidence": "concept page status is review_pending"},
+        {"arm": "new_concept", "cited_slug": "<new-concept-slug>", "matched_alias": "<phrase>", "evidence_line": <int>, "evidence_quote": "<one sentence>"}
+      ]
+    }
+  ],
+  "skipped_concepts": [
+    {"slug": "<concept-slug>", "reason": "only generic-noun aliases"}
+  ]
+}
+```
+
+If no reports are flagged: output `{"reports_audited": <int>, "flagged": []}` plus a one-line summary.
+
+SCOPE LIMITS:
+- Maximum 100 reports audited per run. If more exist, prioritize the most recent 100 by `last_updated`.
+- For very large change sets (more than 50 created concepts), apply Step 2 alias-filtering and de-duplicate before grepping; do not run 50 separate greps when many candidates share lexical structure.
+
+You are advisory only. Do NOT edit any reports. The user (or Phase 3 Part B's auto-fix step) will decide what to do.
+```
+
 ## Phase 2: Consolidate and Save
 
-After all five agents return, merge their findings into a report. Write the report to `wiki/lint/lint-YYYY-MM-DD.md` (create `wiki/lint/` if it doesn't exist) AND display it in the terminal.
+After all six agents return, merge their findings into a report. Write the report to `wiki/lint/lint-YYYY-MM-DD.md` (create `wiki/lint/` if it doesn't exist) AND display it in the terminal.
 
 If a lint report with the same date already exists, overwrite it (re-running lint on the same day replaces the previous run).
 
@@ -337,6 +416,44 @@ Members:
 Recommended newest-wins: `wiki/reports/[slug-c].md`
 Candidates to archive/supersede: `[slug-a].md`, `[slug-b].md`
 Notes: [what differs between them, if anything meaningful]
+
+---
+
+## Stale-by-Content Reports
+
+[From Agent 6. Reports whose synthesis predates relevant concept-page changes since the last lint. Advisory; auto-fix bumps frontmatter status to review_pending if the user opts in (Phase 3 Part B).]
+
+Reports audited: [N]. Manifests in scope: [N] (change window: [start] → [end]). Flagged: [N].
+
+[If no reports are flagged:]
+All reports are current with respect to recent compile changes.
+
+[Otherwise, render the two arm sections in order — cascade first because it's the higher-precision signal:]
+
+### Reports flagged via cascade (cited concept page now in review_pending)
+
+These reports cite a concept page that compile flagged for human review. The report's synthesis is built on a claim the wiki itself wants re-checked.
+
+- `wiki/reports/[slug].md` — "[H1]"
+  - Cites: `[cited-concept-slug]` (status: review_pending)
+  - Last updated: [YYYY-MM-DD]
+
+### Reports flagged via new-concept discoverability
+
+These reports describe topics that now have dedicated concept pages, but predate those concept pages. A re-run via `/atlas query "[H1]"` would pull in the new concept page as a citation.
+
+- `wiki/reports/[slug].md` — "[H1]"
+  - Mentions: "[matched alias phrase]" (line [N]: "[evidence quote]")
+  - Should now cite: `[new-concept-slug]` (created [YYYY-MM-DD])
+  - Last updated: [YYYY-MM-DD]
+
+### Skipped concepts (only generic-noun aliases)
+
+[If any concepts in the change set have no Guard-rail-1-passing aliases, list them so the user knows they're not contributing matches:]
+
+- `[concept-slug]`: only generic-noun aliases. Add a multi-word alias to `.atlas/concepts.json` if you want this concept to participate in the discoverability arm.
+
+To refresh a flagged report, copy its H1 and run `/atlas query "[H1]"` — the slug is deterministic so the existing report file is overwritten in place (preserves `generated`, bumps `last_updated`, resolves `review_pending` if set).
 ```
 
 ## Phase 3: Auto-Fix and Git Commit
@@ -348,15 +465,32 @@ Phase 3 runs in two parts. Part A always runs and records that lint was performe
 2. Git commit if in a repo (detect by Globbing for `.git/` at the KB root, not by running `git rev-parse`): `git -C [KB root] add wiki/lint/ KB.md` then `git -C [KB root] commit -m "atlas: lint run - [HEALTH] - [YYYY-MM-DD]"`. This commit contains only the lint report and the KB.md metadata update.
 
 **Part B: Apply auto-fixes (opt-in).**
-After Part A, ask: "Should I auto-fix the simple structural issues? (broken links, backlink asymmetry, orphan index entries, registry drift, structural alias additions)"
+After Part A, present two opt-in offers separately so the user can accept one without the other (use AskUserQuestion with two questions, or two sequential yes/no prompts):
 
-If the user says yes:
+**Offer 1 — Structural auto-fixes:** "Should I auto-fix the simple structural issues? (broken links, backlink asymmetry, orphan index entries, registry drift, structural alias additions)"
+
+If the user accepts Offer 1:
 1. Fix broken links by removing or correcting them
 2. Add missing backlinks
 3. Add orphan pages to INDEX.md
 4. Remove ghost entries from INDEX.md
 5. Sync `.atlas/concepts.json` with actual concept files (add missing entries, remove entries with no file)
 6. Apply structural alias additions from Agent 5 (acronyms, plurals, hyphen/space swaps only — the items in the "Proposed additions (auto-fixable, structural)" lists). Merge into each concept's `aliases` array in `.atlas/concepts.json`, preserving existing aliases. Do NOT apply paraphrase suggestions — those require explicit user approval because a phrase in the page body can refer to the concept itself, a related concept, or a metaphor, and the agent cannot always tell which.
-7. Git commit if in a repo (detect by Globbing for `.git/` at the KB root, not by running `git rev-parse`): `git -C [KB root] add wiki/ INDEX.md .atlas/concepts.json` then `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`. This is a second, independent commit so it can be reverted without losing the lint report.
 
-If the user says no, Phase 3 ends after Part A — no second commit is created.
+**Offer 2 — Mark stale reports for review:** Only present this offer if Agent 6 flagged at least one report. Ask: "Should I mark the [N] flagged reports as `status: review_pending` so they show up in the review queue? (This is a frontmatter-only change; report bodies are untouched. You can resolve each by re-running `/atlas query` with the report's H1.)"
+
+If the user accepts Offer 2:
+- For each report in Agent 6's `flagged` list, use the Edit tool to update its YAML frontmatter:
+  - Set `status: review_pending`.
+  - Add or replace the `revision_note` field with: `"auto-flagged by lint [YYYY-MM-DD] — [reason]"`. Build the reason from the flag_reasons array, e.g., `"cited concept human-in-the-loop now exists"` (new-concept arm) or `"cited concept memory-systems is in review_pending"` (cascade arm). If both arms fired, list both reasons separated by `; `.
+  - Do NOT touch `generated`, `last_updated`, `concepts_consulted`, or the report body. Only `status` and `revision_note` change.
+- Skip any report whose `status` is already `review_pending` — no edit needed (the lint flag and the existing status agree).
+- If a report's frontmatter has a prior `revision_note` from a non-lint source, prepend the lint note rather than overwriting (e.g., `"auto-flagged by lint 2026-04-29 — ...; previous: <prior note>"`). Frontmatter `revision_note` is a single-line field, so concatenation is fine.
+
+**Commit logic.** If either Offer 1 or Offer 2 was accepted (or both):
+1. Stage the affected paths: `git -C [KB root] add wiki/ INDEX.md .atlas/concepts.json`. If only Offer 2 ran, the wiki/reports edits will be picked up by `wiki/`.
+2. Commit: `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`. If only Offer 2 ran, use the message `"atlas: lint - [N] reports flagged stale-by-content for review"` so the commit history distinguishes structural fixes from advisory queue updates.
+
+This is a second, independent commit (separate from Part A's lint-report commit) so it can be reverted without losing the lint report itself.
+
+If the user declines both offers, Phase 3 ends after Part A — no second commit is created.

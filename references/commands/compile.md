@@ -326,12 +326,34 @@ After all agents finish:
 
 2. Update `.atlas/hashes.json`: for incremental compiles, merge the current hash map from Phase 1 (which already has all hashes) into the stored file. For full compiles, replace the entire file with the current hash map. This avoids recomputing hashes that were already computed in Phase 1. After merge or replace, remove any entries whose files no longer exist in `raw/` (pruning deleted sources).
 
+3. **Write a per-run compile manifest** to `.atlas/compile-runs/[YYYY-MM-DDTHHMM].json` (create `.atlas/compile-runs/` if it doesn't exist). The manifest records what changed in this run so downstream tools — specifically lint's Report Health Auditor — can determine which reports may be stale-by-content without re-deriving the change set.
+
+```json
+{
+  "compile_started": "[ISO 8601 UTC timestamp from Phase 1]",
+  "compile_completed": "[ISO 8601 UTC timestamp at this step]",
+  "incremental": true,
+  "created": ["[concept-slug-1]", "[concept-slug-2]"],
+  "updated": ["[concept-slug-3]"],
+  "deleted": ["[concept-slug-4]"],
+  "review_pending_now": ["[concept-slug-3]"]
+}
+```
+
+Field semantics:
+- `created`: concept slugs (filename without `.md`) for pages NEW in this compile (the agents wrote a `wiki/concepts/[slug].md` that didn't exist when this compile started). Derived from comparing the post-Phase-3 contents of `wiki/concepts/` against the pre-compile slug list.
+- `updated`: concept slugs whose pages existed before this compile and were edited by the agents. Derived from the same diff.
+- `deleted`: concept slugs whose pages existed before this compile but no longer exist after (rare; happens only on full compiles where a source was removed and produced no output).
+- `review_pending_now`: subset of `created ∪ updated` whose post-compile frontmatter `status` is `review_pending`. This is the cascade-arm input for lint; pre-computing it here avoids lint re-reading every concept page's frontmatter.
+
+The manifest is advisory state. Compile does not read its own past manifests; only lint consumes them. If writing the manifest fails (disk full, permission issue), warn the user but do not treat it as a compile failure — the rest of Phase 5 has already succeeded.
+
 ## Phase 6: Git Commit
 
 Check if the KB root is inside a git repository by using Glob for `.git/` at the KB root (e.g., Glob pattern `.git` with `path` set to the KB root, or Glob `[KB root]/.git/HEAD`). Using Glob avoids running `git rev-parse`, which is not in the default allow-list and would prompt the user on every compile.
 
 If yes:
-1. Stage wiki changes: `git -C [KB root] add wiki/ KB.md`
+1. Stage wiki changes: `git -C [KB root] add wiki/ KB.md .atlas/compile-runs/`
 2. Commit: `git -C [KB root] commit -m "atlas: [full|incremental] compile - [N] concepts, [M] summaries"`
 3. If the commit fails (nothing to commit, hook failure, etc.), warn the user but do not treat it as a compile failure.
 

@@ -27,7 +27,20 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 ## Phase 2: Synthesize
 
 1. Generate a slug for the question: lowercase, hyphens, max 50 chars. Example: "rag-vs-finetuning-tradeoffs"
-2. Write the answer as a markdown file at `wiki/reports/[slug].md`. Reports use YAML frontmatter as the canonical metadata block (matching concept and summary pages). Do NOT add a redundant header-style block (`Generated:` / `Concepts consulted:` lines) below the H1 — that is the legacy format. Do NOT add a trailing `## Sources Consulted` section — `concepts_consulted` in frontmatter is the canonical record, and report bodies already cite each concept inline as clickable links throughout the prose, so a footer list adds no navigation value and creates a drift-prone second source of truth.
+
+2. **Detect re-run.** Check whether `wiki/reports/[slug].md` already exists. The slug is deterministic from the question text, so re-running `/atlas query` with the same question (or a question that slugifies identically) is the canonical "refresh this report" action — no separate `--rerun` flag is required, though one may be added as an alias in the future.
+
+   If the file exists:
+   1. Read its YAML frontmatter.
+   2. Preserve `generated` from the existing frontmatter — this date is immutable per `query.md` field semantics.
+   3. Set `last_updated` to today's date.
+   4. If the previous `status` was `review_pending`, this re-run resolves it: set `status: reviewed` and add a `revision_note` line summarizing the trigger (e.g., `revision_note: "re-synthesized 2026-04-29 against current KB state — resolves auto-flag from lint 2026-04-28"`). If the previous `status` was already `reviewed`, leave it as `reviewed` and add a `revision_note` summarizing what prompted the re-run if known (otherwise omit).
+   5. Recompute `concepts_consulted` from the new synthesis pass. The list may differ from the prior run's list — that's expected when the wiki has grown.
+   6. Overwrite the file. The body is fully replaced with the new synthesis; do not attempt to merge with the prior body.
+
+   If the file does NOT exist: proceed with fresh-report defaults (created=today, last_updated=today, status=reviewed, no revision_note).
+
+3. Write the answer as a markdown file at `wiki/reports/[slug].md`. Reports use YAML frontmatter as the canonical metadata block (matching concept and summary pages). Do NOT add a redundant header-style block (`Generated:` / `Concepts consulted:` lines) below the H1 — that is the legacy format. Do NOT add a trailing `## Sources Consulted` section — `concepts_consulted` in frontmatter is the canonical record, and report bodies already cite each concept inline as clickable links throughout the prose, so a footer list adds no navigation value and creates a drift-prone second source of truth.
 
 ```markdown
 ---
@@ -61,9 +74,9 @@ The set of links cited inline must match `concepts_consulted` in frontmatter.]
 - `concepts_consulted`: machine-readable list of relative paths to every concept page actually read. This is the canonical record of what the report drew from. Lint Agent 4 (Report Overlap Detector) reads this directly for cluster Jaccard analysis. Every concept-page link cited inline in the body should appear here; every entry here should appear at least once as an inline citation in the body.
 - Optional fields: `revision_note` (one-line summary of the most recent edit, when `last_updated > generated`), `parent_report` (filename of a parent report when this is a satellite/recall card).
 
-**When updating an existing report** (e.g., after a `--rerun` or follow-up): update `last_updated`, optionally add a `revision_note`, leave `generated` alone. Update `concepts_consulted` if the revision pulled in new concept pages. Do not duplicate metadata in the body.
+**When updating an existing report** (re-run via re-invoking `/atlas query` with the same question, or via a future `--rerun` flag alias): the operational logic for preserving `generated`, bumping `last_updated`, resolving `review_pending` → `reviewed`, and adding a `revision_note` is in step 2 above. Do not duplicate metadata in the body.
 
-3. Display the report content to the user directly in the terminal output.
+4. Display the report content to the user directly in the terminal output.
 
 ## Phase 3: Offer Filing
 
