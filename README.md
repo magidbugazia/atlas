@@ -74,7 +74,8 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
 ├── .atlas/                        # Internal machinery (gitignored, regenerable via compile)
 │   ├── hashes.json                # SHA-256 per raw file — incremental compile change detection
 │   ├── concepts.json              # Slug/name/alias registry — dedup, alias search, compile coordination
-│   └── splits/                    # Temp working copies when large files get split for compile
+│   ├── splits/                    # Temp working copies when large files get split for compile
+│   └── compile-runs/              # Per-compile JSON manifests (created/updated/deleted/review_pending_now slugs) — used by lint Agent 6 for stale-by-content report detection
 ├── raw/                           # Append-only archive of source material
 │   ├── articles/                  # .md files (ingested articles, guides)
 │   ├── papers/                    # .pdf files
@@ -246,7 +247,7 @@ If you later audit a wiki claim and suspect compile hallucinated or compressed s
 
 Running `/atlas lint` produces a health report saved to `wiki/lint/lint-YYYY-MM-DD.md`. The report identifies issues, suggests improvements, and includes ready-to-run commands for follow-up. Nothing is lost between sessions.
 
-The lint report has five sections, each with a different follow-up path:
+The lint report has six sections, each with a different follow-up path:
 
 | Lint Section | What it finds | How to act on it |
 |-------------|--------------|-----------------|
@@ -255,6 +256,7 @@ The lint report has five sections, each with a different follow-up path:
 | **Suggested Connections** | Concept pairs that should cross-link but don't | Add links manually, or wait for next compile |
 | **New Article Candidates** | Topics referenced by many pages but with no page of their own | Run the `/mentor evaluate` command in the report (includes `--context` paths to relevant wiki pages) |
 | **Research Questions** | Gaps the wiki almost answers but doesn't fully cover | Run the `/atlas query` command in the report |
+| **Stale-by-Content Reports** | Reports flagged for review: cited concept now in `review_pending`, OR newly-created concept appears in report body without citation | Accept Phase 3 Part B Offer 2 to bump them to `status: review_pending`, then re-run `/atlas query "<H1>"` on each to refresh in place |
 
 The key design: atlas finds the gaps and prepares the commands. Mentor evaluates whether to fill them. Atlas organizes the result. The user decides what to pursue.
 
@@ -342,7 +344,7 @@ atlas/
         ├── ingest.md                 # Add raw sources
         ├── compile.md                # Build wiki (3 sequential agents)
         ├── query.md                  # Hierarchical retrieval
-        ├── lint.md                   # Health check (5 parallel agents)
+        ├── lint.md                   # Health check (6 parallel agents — 5 if wiki/reports/ is empty)
         ├── status.md                 # Quick stats
         ├── export.md                 # Render a report as an HTML guide via code-fluent
         └── search.md                 # Alias-aware full-text search

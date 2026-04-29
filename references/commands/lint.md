@@ -19,9 +19,9 @@ This step identifies which concept pages are "load-bearing" by counting how many
 
 This step is fast: Glob + Grep across a few hundred small files takes well under a second. It does not need an agent.
 
-**Step B: Launch 6 agents in PARALLEL.**
+**Step B: Launch 5 or 6 agents in PARALLEL.**
 
-If `wiki/reports/` is empty or does not exist, skip Agent 6 (Report Health Auditor) and launch only the first five. Agent 6 has no work to do without saved reports.
+If `wiki/reports/` is empty or does not exist, launch only Agents 1–5. Otherwise, launch all 6 (Agent 6 is the Report Health Auditor and has nothing to audit when there are no saved reports).
 
 **Agent 1: Consistency Checker**
 ```
@@ -212,6 +212,8 @@ INPUTS TO READ:
 2. Glob `.atlas/compile-runs/*.json` for compile manifests written since the last lint run. Determine "since the last lint" using `KB.md`'s `last_linted` field: include any manifest whose `compile_completed` timestamp is strictly after `last_linted`. If `last_linted` is empty (this KB has never been linted), include the most recent 10 manifests. If `.atlas/compile-runs/` is empty or missing, output "No compile manifests found — Agent 6 has no change set to compare against." and stop.
 3. Read `.atlas/concepts.json` for the concept registry (display_name + aliases per slug).
 
+⚠️ **Manifest stability.** Do not manually edit, delete, or back-date files in `.atlas/compile-runs/`. The change-window logic depends on `compile_completed` timestamps being monotonic and untampered. If a manifest is missing or corrupted, the worst case is that Agent 6 misses a change set or surfaces the wrong window — Agent 6 cannot detect tampering. Treat `.atlas/compile-runs/` as append-only machine state, like `.atlas/hashes.json`.
+
 ALGORITHM:
 
 **Step 1: Aggregate the change set across the in-scope manifests.**
@@ -280,7 +282,9 @@ You are advisory only. Do NOT edit any reports. The user (or Phase 3 Part B's au
 
 ## Phase 2: Consolidate and Save
 
-After all six agents return, merge their findings into a report. Write the report to `wiki/lint/lint-YYYY-MM-DD.md` (create `wiki/lint/` if it doesn't exist) AND display it in the terminal.
+After the agents return (5 if `wiki/reports/` was empty, 6 otherwise), merge their findings into a report. Write the report to `wiki/lint/lint-YYYY-MM-DD.md` (create `wiki/lint/` if it doesn't exist) AND display it in the terminal.
+
+**Note on first run after upgrade.** Agent 6 (Report Health Auditor) requires per-compile manifests at `.atlas/compile-runs/*.json` to compute "what changed since the last lint." On the first lint after the manifest-emit feature was added (commit `6dea9d2`), no manifests exist yet from prior compiles. Agent 6 will report `"No compile manifests found — Agent 6 has no change set to compare against."` This is not an error — it means Agent 6 has nothing to audit until the next compile writes its first manifest. After that, Agent 6 begins working normally on subsequent lints. If you want to backfill the missing manifest for a compile that already happened, write `.atlas/compile-runs/[compile-date].json` by hand with the slugs from the compile's terminal output (`created`, `updated` arrays) — the schema is documented in `compile.md` Phase 5.
 
 If a lint report with the same date already exists, overwrite it (re-running lint on the same day replaces the previous run).
 

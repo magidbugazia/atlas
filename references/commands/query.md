@@ -42,12 +42,14 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 
 3. Write the answer as a markdown file at `wiki/reports/[slug].md`. Reports use YAML frontmatter as the canonical metadata block (matching concept and summary pages). Do NOT add a redundant header-style block (`Generated:` / `Concepts consulted:` lines) below the H1 — that is the legacy format. Do NOT add a trailing `## Sources Consulted` section — `concepts_consulted` in frontmatter is the canonical record, and report bodies already cite each concept inline as clickable links throughout the prose, so a footer list adds no navigation value and creates a drift-prone second source of truth.
 
+The frontmatter template below shows the **fresh-report shape** (when step 2's existing-file check returned no match). On a re-run (step 2 found an existing file), use the override values that step 2 established: preserve `generated` from the prior frontmatter, set `last_updated` to today, set `status` per step 2.4 (resolve `review_pending → reviewed` if applicable), and add a `revision_note`. The slug, concepts_consulted, title, and body are recomputed in either case.
+
 ```markdown
 ---
 title: "[Question as title, quote it if it contains a colon, question mark, or apostrophe]"
 slug: [slug]
-generated: [today's date, YYYY-MM-DD]
-last_updated: [today's date, YYYY-MM-DD]
+generated: [today's date for fresh reports; preserved prior date on re-run, see step 2]
+last_updated: [today's date]
 status: reviewed
 concepts_consulted:
   - "../concepts/[slug-1].md"
