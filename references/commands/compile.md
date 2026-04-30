@@ -115,6 +115,7 @@ Subject: [from KB.md]
 Scope: [from KB.md, what topics are in/out of scope]
 Compile mode: [full | incremental]
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
 CONCEPT REGISTRY (read first):
 Read .atlas/concepts.json. This is a JSON object mapping slugs to {name, aliases}. Example:
@@ -197,6 +198,7 @@ You are creating source summaries for a knowledge base wiki.
 Subject: [from KB.md]
 Compile mode: [full | incremental]
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
 Raw sources to process:
 [list every file path]
@@ -228,6 +230,7 @@ You are maintaining a two-tier hierarchical index for a knowledge base wiki.
 
 Subject: [from KB.md]
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
 TASK:
 1. Glob wiki/concepts/ for all .md files. Read each one (at minimum the first 10 lines for the title and summary paragraph).

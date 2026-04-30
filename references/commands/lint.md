@@ -28,6 +28,7 @@ If `wiki/reports/` is empty or does not exist, launch only Agents 1–5. Otherwi
 You are auditing a knowledge base wiki for internal consistency and structural integrity.
 
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 Subject: [from KB.md]
 
 TASK:
@@ -72,6 +73,7 @@ For each issue report:
 You are looking for hidden connections and knowledge gaps in a wiki.
 
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
 TASK:
 1. Read ALL concept pages in wiki/concepts/
@@ -101,6 +103,7 @@ Report everything as structured lists with clear reasoning.
 You are verifying that a knowledge base wiki's claims are actually supported by its cited sources. This catches LLM hallucinations introduced during compilation.
 
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
 TASK:
 1. Glob wiki/concepts/ for all .md files.
@@ -128,6 +131,7 @@ Do NOT verify opinions, synthesis, or the concept page's summary paragraph (thos
 You are detecting overlap between saved query reports in a knowledge base so the user can decide whether to consolidate or archive redundant ones. You DO NOT merge, delete, or edit anything. You only surface clusters of similar reports.
 
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
 TASK:
 1. Glob wiki/reports/ for all .md files. If the directory does not exist or has fewer than 3 reports, report "Not enough reports to analyze (need at least 3)" and stop.
@@ -165,6 +169,7 @@ If no overlapping clusters are found after confirmation, report "No report overl
 You are auditing alias coverage in a knowledge base's concept registry. Aliases are the KB's retrieval vocabulary: when a query uses a paraphrase, acronym, or variant form, the registry expands it to the canonical concept slug. Thin alias coverage silently degrades retrieval — queries miss the right page and fall back to full-text grep. This audit finds concepts whose alias lists don't cover how the concept is actually referred to in the wiki.
 
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
 TASK:
 1. Read .atlas/concepts.json for the full concept registry. Each entry has a slug, display_name, and aliases list.
@@ -206,6 +211,7 @@ If every concept has adequate coverage, report "Alias coverage healthy — no ga
 You are auditing the freshness of saved query reports against recent compile activity. A report becomes stale-by-content when the wiki has materially changed since the report was synthesized — either a cited concept page was flagged for human review, or a new concept page now exists that the report's body discusses without linking to. The report's links still resolve; the prose is what's behind. Your job is to surface candidates for re-synthesis. You do NOT edit anything.
 
 KB root: [path]
+(PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
 INPUTS TO READ:
 1. Glob `wiki/reports/*.md` for all saved reports. If the directory is empty or has zero reports, output `{"reports_audited": 0, "flagged": [], "summary": "No saved reports — nothing to audit."}` and stop.
