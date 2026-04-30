@@ -208,18 +208,36 @@ You are auditing the freshness of saved query reports against recent compile act
 KB root: [path]
 
 INPUTS TO READ:
-1. Glob `wiki/reports/*.md` for all saved reports. If the directory is empty or has zero reports, output "No saved reports — nothing to audit." and stop.
-2. Glob `.atlas/compile-runs/*.json` for compile manifests written since the last lint run. Determine "since the last lint" using `KB.md`'s `last_linted` field: include any manifest whose `compile_completed` timestamp is strictly after `last_linted`. If `last_linted` is empty (this KB has never been linted), include the most recent 10 manifests. If `.atlas/compile-runs/` is empty or missing, output "No compile manifests found — Agent 6 has no change set to compare against." and stop.
-3. Read `.atlas/concepts.json` for the concept registry (display_name + aliases per slug).
+1. Glob `wiki/reports/*.md` for all saved reports. If the directory is empty or has zero reports, output `{"reports_audited": 0, "flagged": [], "summary": "No saved reports — nothing to audit."}` and stop.
+2. Glob `.atlas/compile-runs/*.json` for compile manifests. Determine in-scope manifests using `KB.md`'s `last_linted` field, applying this three-state rule:
+   - **Field missing entirely** (key not in YAML): treat as "never linted" — include the most recent 10 manifests by filename ordering.
+   - **Field present but value is null, empty string, or `"never"`**: same as missing.
+   - **Field present with a date or timestamp value**: include any manifest whose `compile_completed` is strictly greater than `last_linted` after timestamp normalization (see Timestamp Handling below).
 
-⚠️ **Manifest stability.** Do not manually edit, delete, or back-date files in `.atlas/compile-runs/`. The change-window logic depends on `compile_completed` timestamps being monotonic and untampered. If a manifest is missing or corrupted, the worst case is that Agent 6 misses a change set or surfaces the wrong window — Agent 6 cannot detect tampering. Treat `.atlas/compile-runs/` as append-only machine state, like `.atlas/hashes.json`.
+   If `.atlas/compile-runs/` is empty or missing entirely, output `{"reports_audited": <count>, "flagged": [], "summary": "No compile manifests found — Agent 6 has no change set to compare against."}` and stop.
+
+   For each manifest file in scope, attempt to parse as JSON. If parsing fails (corrupted file, partial write, manual edit gone wrong), log a warning to the agent's output (`{"warning": "Skipping corrupted manifest", "file": "<path>"}`), skip that file, and continue with the rest. If ALL in-scope manifests fail to parse, output `{"reports_audited": <count>, "flagged": [], "summary": "All in-scope compile manifests are corrupted or unreadable. Investigate `.atlas/compile-runs/`."}` and stop.
+
+3. Read `.atlas/concepts.json` for the concept registry (display_name + aliases per slug). If this file is missing or unreadable, output `{"reports_audited": <count>, "flagged": [], "summary": "Concept registry .atlas/concepts.json is missing — Agent 6 cannot resolve aliases. Run /atlas compile to regenerate."}` and stop.
+
+**Timestamp handling.** Before any timestamp comparison, normalize all values to ISO 8601 UTC strings:
+- A date-only value like `2026-04-28` normalizes to `2026-04-28T00:00:00Z`.
+- A full ISO 8601 timestamp passes through unchanged.
+- A Unix epoch integer (rare; only from manual manifest backfill) converts via `datetime.utcfromtimestamp()` then formats as ISO 8601.
+- Anything else is treated as unparseable — log a warning and skip the affected manifest entry.
+
+After normalization, comparisons can be done as lexicographic string comparisons (which work correctly for ISO 8601 UTC strings of consistent length).
+
+⚠️ **Manifest stability.** Do not manually edit, delete, or back-date files in `.atlas/compile-runs/`. The change-window logic depends on `compile_completed` timestamps being monotonic and untampered. The corruption-handling rules above keep Agent 6 from crashing on bad manifests, but Agent 6 cannot detect deliberate tampering — a manually back-dated manifest will silently shift the change window. Treat `.atlas/compile-runs/` as append-only machine state, like `.atlas/hashes.json`.
 
 ALGORITHM:
 
 **Step 1: Aggregate the change set across the in-scope manifests.**
-- `created_slugs` = union of every `created` array across manifests.
-- `review_pending_slugs` = union of every `review_pending_now` array.
+- `created_slugs` = union of every `created` array across in-scope manifests (after corruption-skipping).
 - Earliest `compile_started` timestamp across the in-scope manifests = `change_window_start`. Latest `compile_completed` timestamp = `change_window_end`.
+- If the in-scope set is empty after filtering (e.g., `last_linted` is recent and no new compiles have happened), output `{"reports_audited": <count>, "flagged": [], "summary": "No compile activity since last lint — nothing to audit."}` and stop.
+
+**Note on `review_pending`.** Agent 6 does NOT use the manifest's `review_pending_now` field for the cascade arm. `review_pending` is a CURRENT state on each concept page's frontmatter, not a per-compile event — a concept can be in `review_pending` because of a compile two months ago, with no related entry in any in-scope manifest. The cascade arm reads concept frontmatter directly (Step 3 below). The manifest's optional `review_pending_now` field, if present, is informational only.
 
 **Step 2: Build the new-concept candidate-alias list (Guard-rail 1: alias quality bar).**
 For each slug in `created_slugs`, look up its `display_name` and `aliases` in `.atlas/concepts.json`. For each candidate phrase (display_name and each alias), apply the filter:
@@ -233,15 +251,26 @@ If a created concept's only matching candidates all get rejected, that concept d
 **Step 3: For each report, run the two arms.**
 For each `wiki/reports/[slug].md`:
 1. Parse the YAML frontmatter to extract `title`, `last_updated`, `concepts_consulted`, `status`, and the existing `revision_note` if any.
-2. Read the body (everything after the frontmatter close).
+2. **Legacy fallback.** If the report has no YAML frontmatter (legacy reports written before the YAML conversion), fall back to:
+   - `title`: the H1 line (first `# ` line).
+   - `last_updated`: file modification time via Bash (`date -r [path] +%Y-%m-%dT%H:%M:%SZ` or equivalent).
+   - `concepts_consulted`: parse the body for a `## Concepts consulted:` or `Concepts consulted:` line; the value may be inline-comma-separated or a bulleted list. If absent, treat as an empty list.
+   - `status`: treat as missing (not `reviewed`, not `review_pending`, just absent).
+   - `revision_note`: absent.
+   This matches Agent 4's legacy-handling pattern.
+3. Read the body (everything after the frontmatter close, or the entire file if no frontmatter).
+4. Normalize `last_updated` to ISO 8601 UTC per the Timestamp Handling rule above.
 
 **Cascade arm.**
-- For each entry in `concepts_consulted`, derive the cited concept slug (the filename without `.md`) and intersect with `review_pending_slugs`.
-- If any intersection is non-empty, flag the report. Cite each `review_pending` concept slug.
+- If `concepts_consulted` is missing or empty, skip the cascade arm for this report (no citations to check). Proceed to the new-concept arm.
+- For each entry in `concepts_consulted`, derive the cited concept slug (the filename without `.md`).
+- Check whether `wiki/concepts/[slug].md` exists.
+  - **If the concept page does NOT exist** (concept was deleted in a full compile, or the citation was always wrong): flag the report with reason `{arm: "cascade", cited_slug: <slug>, evidence: "cited concept page does not exist (deleted or never created)"}`. The report's synthesis cites a now-missing concept — re-synthesis is appropriate.
+  - **If the concept page exists**: read its YAML frontmatter and extract the `status` field. If `status` equals `review_pending`, flag the report with reason `{arm: "cascade", cited_slug: <slug>, evidence: "cited concept page is currently in review_pending"}`. Note: this checks the CURRENT state on the concept page, not the manifest's per-event signal. A concept that became `review_pending` weeks ago and hasn't been resolved still triggers the cascade arm today.
 
 **New-concept body-grep arm.**
-- Apply Guard-rail 2: skip this arm if `report.last_updated >= change_window_start` (strict less-than required for this arm to fire). A report that was written or refreshed during or after the compile window has already incorporated the new state.
-- For each accepted candidate alias from Step 2, search the report body case-insensitively. Include word-boundary anchors so "HITL" doesn't match "HITLer" and "cron for agents" doesn't match arbitrary "cron" usage.
+- Apply Guard-rail 2: skip this arm if `report.last_updated >= change_window_start` (strict less-than required for this arm to fire). Both values are normalized ISO 8601 UTC strings (per Timestamp Handling above), so the comparison is well-defined. A report that was written or refreshed during or after the compile window has already incorporated the new state.
+- For each accepted candidate alias from Step 2, search the report body case-insensitively. Use word-boundary regex with extra care around hyphens: standard `\b` treats hyphens as boundaries, which usually does what you want (`\bcron\b` matches `cron-for-agents` but not `chronological`), but for multi-word phrases like `cron for agents`, match the literal phrase `\bcron for agents\b` rather than building a per-word disjunction.
 - For each match, capture the matched line and a quoted excerpt (one full sentence containing the match, or 80 chars on each side if the sentence is unclear).
 - If any match found, flag the report. Cite each new-concept slug whose alias matched, with the evidence quote.
 
@@ -271,11 +300,11 @@ A report flagged by both arms is one entry with both `cascade` and `new_concept`
 }
 ```
 
-If no reports are flagged: output `{"reports_audited": <int>, "flagged": []}` plus a one-line summary.
+If no reports are flagged: output the same JSON envelope with `flagged: []` plus a `summary` field set to `"All reports are current with respect to recent compile changes."` Phase 2 renders this summary verbatim in the markdown report.
 
 SCOPE LIMITS:
-- Maximum 100 reports audited per run. If more exist, prioritize the most recent 100 by `last_updated`.
-- For very large change sets (more than 50 created concepts), apply Step 2 alias-filtering and de-duplicate before grepping; do not run 50 separate greps when many candidates share lexical structure.
+- Maximum 100 reports audited per run. If more exist, prioritize the most recent 100 by normalized `last_updated`. If `last_updated` is missing on a legacy report (and the file mtime fallback also fails for some reason), use lexicographic filename ordering as the final tiebreaker — deterministic, reproducible across runs.
+- For very large change sets (more than 50 created concepts), de-duplicate the candidate-alias list (not the slug list — Step 1's union already deduped slugs) before building greps. If two concepts share an accepted alias, grep for the alias once and attribute matches to whichever concept claimed it first; flag both concepts in the resulting `flag_reasons` if their aliases overlap.
 
 You are advisory only. Do NOT edit any reports. The user (or Phase 3 Part B's auto-fix step) will decide what to do.
 ```
@@ -284,7 +313,7 @@ You are advisory only. Do NOT edit any reports. The user (or Phase 3 Part B's au
 
 After the agents return (5 if `wiki/reports/` was empty, 6 otherwise), merge their findings into a report. Write the report to `wiki/lint/lint-YYYY-MM-DD.md` (create `wiki/lint/` if it doesn't exist) AND display it in the terminal.
 
-**Note on first run after upgrade.** Agent 6 (Report Health Auditor) requires per-compile manifests at `.atlas/compile-runs/*.json` to compute "what changed since the last lint." On the first lint after the manifest-emit feature was added (commit `6dea9d2`), no manifests exist yet from prior compiles. Agent 6 will report `"No compile manifests found — Agent 6 has no change set to compare against."` This is not an error — it means Agent 6 has nothing to audit until the next compile writes its first manifest. After that, Agent 6 begins working normally on subsequent lints. If you want to backfill the missing manifest for a compile that already happened, write `.atlas/compile-runs/[compile-date].json` by hand with the slugs from the compile's terminal output (`created`, `updated` arrays) — the schema is documented in `compile.md` Phase 5.
+**Note on first run after upgrade.** Agent 6 (Report Health Auditor) requires per-compile manifests at `.atlas/compile-runs/*.json` to compute "what changed since the last lint." If you upgrade atlas to a version that emits manifests, no manifests exist yet from prior compiles. Agent 6 will report `"No compile manifests found — Agent 6 has no change set to compare against."` This is not an error — Agent 6 has nothing to audit until the next compile writes its first manifest. After that, Agent 6 begins working normally on subsequent lints. If you want to backfill a missing manifest for a compile that already happened, write `.atlas/compile-runs/[compile-date].json` by hand with the slugs from the compile's terminal output (`created`, `updated` arrays) — the schema is documented in `compile.md` Phase 5.
 
 If a lint report with the same date already exists, overwrite it (re-running lint on the same day replaces the previous run).
 

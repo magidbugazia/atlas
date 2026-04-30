@@ -326,7 +326,7 @@ After all agents finish:
 
 2. Update `.atlas/hashes.json`: for incremental compiles, merge the current hash map from Phase 1 (which already has all hashes) into the stored file. For full compiles, replace the entire file with the current hash map. This avoids recomputing hashes that were already computed in Phase 1. After merge or replace, remove any entries whose files no longer exist in `raw/` (pruning deleted sources).
 
-3. **Write a per-run compile manifest** to `.atlas/compile-runs/[YYYY-MM-DDTHHMM].json` (create `.atlas/compile-runs/` if it doesn't exist). The manifest records what changed in this run so downstream tools — specifically lint's Report Health Auditor — can determine which reports may be stale-by-content without re-deriving the change set.
+3. **Write a per-run compile manifest** to `.atlas/compile-runs/[YYYY-MM-DDTHHMM].json` (create `.atlas/compile-runs/` if it doesn't exist). The manifest records what changed in this run so downstream tools — specifically lint's Report Health Auditor — can determine the change set without re-deriving it.
 
 ```json
 {
@@ -335,18 +335,20 @@ After all agents finish:
   "incremental": true,
   "created": ["[concept-slug-1]", "[concept-slug-2]"],
   "updated": ["[concept-slug-3]"],
-  "deleted": ["[concept-slug-4]"],
-  "review_pending_now": ["[concept-slug-3]"]
+  "deleted": ["[concept-slug-4]"]
 }
 ```
 
 Field semantics:
+- `compile_started` / `compile_completed`: ISO 8601 UTC timestamps. Lint's Agent 6 normalizes any date-only or epoch values to ISO 8601 UTC at read time, but write them as ISO 8601 UTC for forward compatibility.
+- `incremental`: boolean — true for `compile --incremental`, false for full rebuild.
 - `created`: concept slugs (filename without `.md`) for pages NEW in this compile (the agents wrote a `wiki/concepts/[slug].md` that didn't exist when this compile started). Derived from comparing the post-Phase-3 contents of `wiki/concepts/` against the pre-compile slug list.
 - `updated`: concept slugs whose pages existed before this compile and were edited by the agents. Derived from the same diff.
 - `deleted`: concept slugs whose pages existed before this compile but no longer exist after (rare; happens only on full compiles where a source was removed and produced no output).
-- `review_pending_now`: subset of `created ∪ updated` whose post-compile frontmatter `status` is `review_pending`. This is the cascade-arm input for lint; pre-computing it here avoids lint re-reading every concept page's frontmatter.
 
 The manifest is advisory state. Compile does not read its own past manifests; only lint consumes them. If writing the manifest fails (disk full, permission issue), warn the user but do not treat it as a compile failure — the rest of Phase 5 has already succeeded.
+
+**Why the manifest does NOT track `review_pending_now`.** Earlier drafts of this schema included a `review_pending_now` field listing concepts that compile flagged for review during this run. That field is omitted because it captures the wrong signal: lint's cascade arm needs to know which concepts are CURRENTLY in `review_pending` (a state on each concept page's frontmatter), not which ones happened to enter that state during this compile. A concept flagged `review_pending` two compiles ago and not yet resolved must still trigger the cascade arm, but would not appear in the most recent manifest's per-event field. Lint Agent 6 reads concept frontmatter directly to get the authoritative current state.
 
 ## Phase 6: Git Commit
 
