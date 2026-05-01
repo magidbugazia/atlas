@@ -26,9 +26,13 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 
 ## Phase 2: Synthesize
 
-1. Generate a slug for the question: lowercase, hyphens, max 50 chars. Example: "rag-vs-finetuning-tradeoffs"
+**Refreshing an existing report.** A user who wants to refresh a saved report runs `/atlas query` with a question whose text matches the existing report's `title` field. The title lives in the report's YAML frontmatter (`title: "..."`) and is also the H1 line at the top of the report body — both are kept in sync by this command. Step 1 below performs a normalized title lookup so that any reasonable case/whitespace variation routes to the existing slug, even if the LLM would have generated a different slug on a fresh run. When confirming a saved or refreshed report at the end of Phase 3, surface the exact title string so the user knows what to type to refresh it later.
 
-2. **Detect re-run.** Check whether `wiki/reports/[slug].md` already exists. The slug is deterministic from the question text, so re-running `/atlas query` with the same question (or a question that slugifies identically) is the canonical "refresh this report" action — no separate `--rerun` flag is required, though one may be added as an alias in the future.
+1. **Reverse-lookup by title first.** Before generating a slug, check whether the input question already has a saved report under a known slug. Glob `wiki/reports/*.md`. For each existing report, read its `title` frontmatter field (preferred); if absent on a legacy report, fall back to the H1 (first `# ` line) of the body. Normalize both the input question and each candidate title for comparison: trim leading/trailing whitespace, strip surrounding double quotes, lowercase. If any existing report's normalized title matches the normalized input question exactly, reuse that report's existing slug from its filename and skip step 2 entirely. Proceed directly to step 3 with the matched slug. If multiple reports tie (rare; indicates a duplicate-title bug in the wiki), prefer the report with the most recent `last_updated`. This step is the primary re-run detection mechanism — it makes refresh independent of LLM-side slug-generation drift.
+
+2. Generate a slug for the question: lowercase, hyphens, max 50 chars. Example: "rag-vs-finetuning-tradeoffs". Skip this step if step 1 already matched an existing report — reuse that report's slug instead.
+
+3. **Detect re-run by slug (backstop).** Check whether `wiki/reports/[slug].md` already exists. When step 1 matched, the file is guaranteed to exist and this step always routes to the re-run path. When step 1 did not match but step 2's slug happens to collide with an existing file (e.g., a paraphrased question that slugifies identically), this step still catches the collision and routes to the re-run path. The slug-level check is the backstop for the title lookup.
 
    If the file exists:
    1. Read its YAML frontmatter.
@@ -40,15 +44,15 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 
    If the file does NOT exist: proceed with fresh-report defaults (created=today, last_updated=today, status=reviewed, no revision_note).
 
-3. Write the answer as a markdown file at `wiki/reports/[slug].md`. Reports use YAML frontmatter as the canonical metadata block (matching concept and summary pages). Do NOT add a redundant header-style block (`Generated:` / `Concepts consulted:` lines) below the H1 — that is the legacy format. Do NOT add a trailing `## Sources Consulted` section — `concepts_consulted` in frontmatter is the canonical record, and report bodies already cite each concept inline as clickable links throughout the prose, so a footer list adds no navigation value and creates a drift-prone second source of truth.
+4. Write the answer as a markdown file at `wiki/reports/[slug].md`. Reports use YAML frontmatter as the canonical metadata block (matching concept and summary pages). Do NOT add a redundant header-style block (`Generated:` / `Concepts consulted:` lines) below the H1 — that is the legacy format. Do NOT add a trailing `## Sources Consulted` section — `concepts_consulted` in frontmatter is the canonical record, and report bodies already cite each concept inline as clickable links throughout the prose, so a footer list adds no navigation value and creates a drift-prone second source of truth.
 
-The frontmatter template below shows the **fresh-report shape** (when step 2's existing-file check returned no match). On a re-run (step 2 found an existing file), use the override values that step 2 established: preserve `generated` from the prior frontmatter, set `last_updated` to today, set `status` per step 2.4 (resolve `review_pending → reviewed` if applicable), and add a `revision_note`. The slug, concepts_consulted, title, and body are recomputed in either case.
+The frontmatter template below shows the **fresh-report shape** (when step 3's existing-file check returned no match). On a re-run (step 1 matched a title, or step 3 found an existing file), use the override values that step 3 established: preserve `generated` from the prior frontmatter, set `last_updated` to today, set `status` per step 3.4 (resolve `review_pending → reviewed` if applicable), and add a `revision_note`. The slug, concepts_consulted, title, and body are recomputed in either case.
 
 ```markdown
 ---
 title: "[Question as title, quote it if it contains a colon, question mark, or apostrophe]"
 slug: [slug]
-generated: [today's date for fresh reports; preserved prior date on re-run, see step 2]
+generated: [today's date for fresh reports; preserved prior date on re-run, see step 3]
 last_updated: [today's date]
 status: reviewed
 concepts_consulted:
@@ -76,15 +80,22 @@ The set of links cited inline must match `concepts_consulted` in frontmatter.]
 - `concepts_consulted`: machine-readable list of relative paths to every concept page actually read. This is the canonical record of what the report drew from. Lint Agent 4 (Report Overlap Detector) reads this directly for cluster Jaccard analysis. Every concept-page link cited inline in the body should appear here; every entry here should appear at least once as an inline citation in the body.
 - Optional fields: `revision_note` (one-line summary of the most recent edit, when `last_updated > generated`), `parent_report` (filename of a parent report when this is a satellite/recall card).
 
-**When updating an existing report** (re-run via re-invoking `/atlas query` with the same question, or via a future `--rerun` flag alias): the operational logic for preserving `generated`, bumping `last_updated`, resolving `review_pending` → `reviewed`, and adding a `revision_note` is in step 2 above. Do not duplicate metadata in the body.
+**When updating an existing report** (re-run via re-invoking `/atlas query` with the same question, or via a future `--rerun` flag alias): the operational logic for preserving `generated`, bumping `last_updated`, resolving `review_pending` → `reviewed`, and adding a `revision_note` is in step 3 above (with the title-lookup re-run path entered through step 1). Do not duplicate metadata in the body.
 
-4. Display the report content to the user directly in the terminal output.
+5. Display the report content to the user directly in the terminal output.
 
 ## Phase 3: Offer Filing
 
-After displaying the report, ask:
+After displaying the report, confirm the save and surface the title so the user knows how to refresh it later. Use the template below — substitute `saved` for fresh reports, `refreshed` for re-runs that took the step 3 existing-file path.
 
-"Report saved to `wiki/reports/[slug].md`. Should I extract new concepts or enrich existing concept pages from this report? (This feeds your exploration back into the knowledge base.)"
+```
+Report [saved|refreshed] at `wiki/reports/[slug].md`.
+Title: "[exact title string from frontmatter]"
+
+To refresh this report later, run `/atlas query "[exact title string]"` — atlas matches on title and overwrites the existing file in place (preserves `generated`, bumps `last_updated`, resolves `review_pending` if set).
+
+Should I extract new concepts or enrich existing concept pages from this report? (This feeds your exploration back into the knowledge base.)
+```
 
 If the user says yes:
 1. Read the report
