@@ -121,7 +121,7 @@ Output:
 ## Knowledge Base Initialized: [Subject]
 
 Directory: [path]
-Structure: .atlas/ (hashes, concepts, splits, compile-runs), raw/ (6 subdirectories), wiki/ (8 subdirectories)
+Structure: .atlas/ (hashes, concepts, splits, compile-runs), raw/ (6 subdirectories), wiki/ (7 subdirectories + INDEX.md)
 
 Next steps:
 1. Add raw material to `raw/` (articles, papers, notes, images)

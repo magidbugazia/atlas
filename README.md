@@ -75,7 +75,7 @@ After `init`, `ingest`, and `compile`, your repo looks like this:
 │   ├── hashes.json                # SHA-256 per raw file — incremental compile change detection
 │   ├── concepts.json              # Slug/name/alias registry — dedup, alias search, compile coordination
 │   ├── splits/                    # Temp working copies when large files get split for compile
-│   └── compile-runs/              # Per-compile JSON manifests (created/updated/deleted/review_pending_now slugs) — used by lint Agent 6 for stale-by-content report detection
+│   └── compile-runs/              # Per-compile JSON manifests (created/updated/deleted slugs) — used by lint Agent 6 for stale-by-content report detection
 ├── raw/                           # Append-only archive of source material
 │   ├── articles/                  # .md files (ingested articles, guides)
 │   ├── papers/                    # .pdf files

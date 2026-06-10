@@ -1,7 +1,7 @@
 ---
 name: atlas
 description: Knowledge base builder - collects raw material, compiles an interconnected wiki, maintains indexes, answers queries, and lints for consistency. Pair with /mentor for resource evaluation and industry alignment.
-argument-hint: "init <subject> | ingest <URL | path> | compile [--incremental] | query \"question\" | search \"term\" | lint | status | export <report-slug>"
+argument-hint: "init <subject> | ingest <URL | path> | compile [--incremental] | query \"question\" | search \"term\" | lint | verify [pending | <slug> | recent [N]] | status | export <report-slug>"
 allowed-tools: Read Write Edit Grep Glob Bash Task WebFetch WebSearch AskUserQuestion
 disable-model-invocation: true
 ---
@@ -22,6 +22,7 @@ You do NOT evaluate whether a source is worth including (that is `/mentor evalua
 | `/atlas compile --incremental` | Update wiki with only new/changed raw material |
 | `/atlas query "question"` | Research question against wiki, write answer to `wiki/reports/` |
 | `/atlas lint` | Health check: contradictions, broken links, missing pages, connections |
+| `/atlas verify [pending \| <slug> \| recent [N]]` | Spot-check `review_pending` concept pages against raw sources; auto-clear clean ones, surface real drift |
 | `/atlas status` | Stats: article counts, last compile date, health indicators |
 | `/atlas export <report-slug>` | Render an existing report from `wiki/reports/` as an interactive HTML guide via code-fluent |
 | `/atlas search "term"` | Search wiki full text with alias expansion, return matches |
@@ -54,6 +55,7 @@ Parse $ARGUMENTS to determine command:
 - Starts with `compile` --> Command: Compile
 - Starts with `query` --> Command: Query
 - Starts with `lint` --> Command: Lint
+- Starts with `verify` --> Command: Verify
 - Starts with `status` --> Command: Status
 - Starts with `export` --> Command: Export
 - Starts with `search` --> Command: Search
@@ -108,6 +110,16 @@ If `references/commands/query.md` does not exist, STOP and tell the user: "Atlas
 **Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/lint.md` now, then follow the instructions in that file.** It contains the complete operational logic for the lint command: Phase 1 (Compute Hub Concepts deterministically, then spawn 6 agents in PARALLEL: Consistency Checker, Connection Discoverer, Source Verifier, Report Overlap Detector, Alias Coverage Checker, Report Health Auditor), Phase 2 (Consolidate findings into wiki/lint/lint-YYYY-MM-DD.md), Phase 3 (Auto-Fix and Git Commit — two independent opt-in offers: structural fixes and stale-report flagging). The 6 lint agents run in PARALLEL, not sequentially. Agent 6 is skipped when `wiki/reports/` is empty.
 
 If `references/commands/lint.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/lint.md. The skill is partially installed. Cannot proceed."
+
+---
+
+## Command: Verify
+
+**Invocation:** `/atlas verify` (default scope: pending) or `/atlas verify <concept-slug>` or `/atlas verify recent [N]`
+
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/verify.md` now, then follow the instructions in that file.** It contains the complete operational logic for the verify command: Phase 1 (Determine Scope: pending pages, one slug, or recent compile manifests), Phase 2 (parallel verifier agents spot-checking claims against raw sources using lint's claim taxonomy), Phase 3 (Apply Results: auto-clear REVIEWED-OK, opt-in MINOR-FIX corrections, NEEDS-REWRITE stays flagged), Phase 4 (Git Commit), Phase 5 (Output). Verify resolves `review_pending` on concept pages; lint only surfaces it.
+
+If `references/commands/verify.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/verify.md. The skill is partially installed. Cannot proceed."
 
 ---
 

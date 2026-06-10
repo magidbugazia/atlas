@@ -12,10 +12,10 @@ No agents needed. Quick stats from reading existing files:
 2. Count files in each `raw/` subdirectory (use Glob)
 3. Count files in `wiki/concepts/`, `wiki/summaries/`, `wiki/reports/`, `wiki/slides/`
 4. Read `.atlas/hashes.json` and count entries vs. current raw file count to detect untracked files
-5. Read `wiki/INDEX.md` first 5 lines for the last compiled date and totals
+5. Read `wiki/INDEX.md` in full (it is capped at 60 lines by design) for the last compiled date, totals, and the Categories list
 6. Read `.atlas/concepts.json` and count entries (number of top-level keys)
 7. Count reports flagged for review: glob `wiki/reports/*.md`, parse YAML frontmatter on each, count those whose `status: review_pending`. This surfaces lint Agent 6's stale-by-content output without exposing manifest internals.
-8. Count compile manifests since last lint: glob `.atlas/compile-runs/*.json`, count those whose `compile_completed` is after `KB.md:last_linted`. Treat `last_linted: never` (init's seed value) or a missing field as "no lint yet" and count ALL manifests (same three-state rule lint Agent 6 uses). Skip only if the manifests directory is missing.
+8. Count compile manifests since last lint: glob `.atlas/compile-runs/*.json`, count those whose `compile_completed` is after `KB.md:last_linted`. Treat `last_linted: never` (init's seed value) or a missing field as "no lint yet" and count manifests capped at the most recent 10 (same three-state rule and cap lint Agent 6 uses). Skip only if the manifests directory is missing.
 
 Output:
 

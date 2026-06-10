@@ -27,7 +27,7 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 After building the file list, check each raw file for frontmatter (Grep for `^---` in the first 5 lines). Files without frontmatter were likely dropped manually (via Obsidian Web Clipper, file explorer, etc.). For each:
 - Create minimal frontmatter from what's available: `title` from filename (dehyphenate, title-case), `date_ingested` from file modification date (via Bash `date -r [file] +%Y-%m-%d`), `source: unknown (manual drop)`, `extraction_method: manual-drop`.
 - Prepend the frontmatter to the file using Edit.
-- Recompute the file's hash after the prepend and update its entry in the Phase 1 hash map (the prepend changed the content, so the earlier hash is stale). Do NOT write `.atlas/hashes.json` here — hash persistence happens exclusively in Phase 5, after the source has actually been compiled. Writing it earlier breaks retry: if this compile fails, a stored hash makes the next incremental run skip the file forever (the invariant ingest.md Phase 3 documents).
+- Recompute the file's hash after the prepend and update its entry in the Phase 1 hash map (incremental mode only; full mode computes all hashes in Phase 5, after this prepend, so there is no Phase 1 map to update). The prepend changed the content, so any earlier hash is stale. Do NOT write `.atlas/hashes.json` here — hash persistence happens exclusively in Phase 5, after the source has actually been compiled. Writing it earlier breaks retry: if this compile fails, a stored hash makes the next incremental run skip the file forever (the invariant ingest.md Phase 3 documents).
 - Log to output: "Detected [N] manually added files without metadata. Added minimal frontmatter."
 
 **For full compile:**
@@ -105,9 +105,9 @@ Handle directly without agents. The context cost is minimal:
 
 Agents run SEQUENTIALLY. Agent 1 must finish before Agent 2 starts (so Agent 2 can reference actual concept filenames). Agent 3 runs after Agent 2.
 
-**Step A:** Spawn Agent 1 via Agent tool (`subagent_type: general-purpose`). Wait for completion.
-**Step B:** Spawn Agent 2 via Agent tool (`subagent_type: general-purpose`). Wait for completion.
-**Step C:** Spawn Agent 3 via Agent tool (`subagent_type: general-purpose`).
+**Step A:** Spawn Agent 1 via Task tool (`subagent_type: general-purpose`). Wait for completion.
+**Step B:** Spawn Agent 2 via Task tool (`subagent_type: general-purpose`). Wait for completion.
+**Step C:** Spawn Agent 3 via Task tool (`subagent_type: general-purpose`).
 
 **Agent 1: Concept Compiler**
 ```
@@ -204,6 +204,9 @@ KB root: [path]
 
 Raw sources to process:
 [list every file path]
+
+Exempt source slugs (re-apply `exempt_from_raw_hash: true` in their summaries' frontmatter):
+[list of slugs from the full-compile cleanup step, or "none"]
 
 IMPORTANT: Agent 1 has already created concept pages in wiki/concepts/. Read the
 filenames in wiki/concepts/ (use Glob) so you can link to them accurately.
@@ -303,7 +306,7 @@ RULES:
 
 When total source lines exceed 8000:
 
-**Pre-batch cleanup (full compile only):** Before launching any batch, delete all files in `wiki/concepts/`, `wiki/summaries/`, and `wiki/indexes/`. Reset `.atlas/concepts.json` to `{}`. Preserve `wiki/reports/`, `wiki/lint/`, `wiki/slides/`, `wiki/images/`, and `wiki/INDEX.md`. This gives batch 1 a clean slate.
+**Pre-batch cleanup (full compile only):** Before launching any batch, first record which summaries in `wiki/summaries/` carry `exempt_from_raw_hash: true` (pass the exempt slug list into every batch's Agent 2 prompt, same as the Standard Path cleanup). Then delete all files in `wiki/concepts/`, `wiki/summaries/`, and `wiki/indexes/`. Reset `.atlas/concepts.json` to `{}`. Preserve `wiki/reports/`, `wiki/lint/`, `wiki/slides/`, `wiki/images/`, and `wiki/INDEX.md`. This gives batch 1 a clean slate.
 
 1. Split the file list into batches of ~10 sources. Group files from the same `raw/` subdirectory together when possible.
 2. For **each batch**: run Agent 1 with compile mode **INCREMENTAL** (even during a full compile — the pre-batch cleanup already wiped old pages, so incremental mode correctly merges into the growing wiki). Then run Agent 2 (reads existing summaries and concepts.json for linking).

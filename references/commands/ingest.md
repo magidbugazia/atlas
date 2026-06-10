@@ -84,5 +84,5 @@ Key topics detected: [list 3-5 concepts]
 
 Raw sources total: [N]
 Wiki last compiled: [date from KB.md]
-[If wiki is behind: "Wiki is [N] sources behind. Run `/atlas compile --incremental` to update."]
+[If wiki is behind (compare compilable units as status.md defines them: raw files minus images, PDF binaries, and dataset binaries, vs summaries count): "Wiki is [N] sources behind. Run `/atlas compile --incremental` to update."]
 ```
