@@ -337,7 +337,6 @@ The skill uses a sub-indexed pattern to keep `SKILL.md` small. SKILL.md contains
 atlas/
 ├── SKILL.md                          # Dispatcher (under 200 lines)
 ├── README.md                         # This file
-├── atlas-guide.html                  # Standalone guide
 └── references/
     └── commands/
         ├── init.md                   # Create KB structure
