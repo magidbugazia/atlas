@@ -13,6 +13,8 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 3. Read `wiki/INDEX.md` to know what the wiki currently contains (if it exists).
 4. Read `.atlas/concepts.json` for the concept registry (if it exists).
 5. Read `KB.md` for `last_compiled` date.
+6. Record the compile start timestamp (ISO 8601 UTC, via Bash `date -u +%Y-%m-%dT%H:%M:%SZ`). Phase 5's manifest writes it as `compile_started`.
+7. Snapshot the pre-compile slug list: the set of filenames currently in `wiki/concepts/` (Glob, or empty if the directory doesn't exist). Phase 5's manifest derives `created`/`updated`/`deleted` from this baseline. This snapshot MUST happen here, in both modes — in a full compile the cleanup step deletes those pages before agents run, so there is nothing left to snapshot later.
 
 **For `--incremental` (hash-based change detection):**
 - Read `.atlas/hashes.json` for stored hashes
@@ -23,9 +25,9 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 
 **Detect manual drops (both modes):**
 After building the file list, check each raw file for frontmatter (Grep for `^---` in the first 5 lines). Files without frontmatter were likely dropped manually (via Obsidian Web Clipper, file explorer, etc.). For each:
-- Create minimal frontmatter from what's available: `title` from filename (dehyphenate, title-case), `date_ingested` from file modification date (via Bash `date -r [file] +%Y-%m-%d`), `source: unknown (manual drop)`.
+- Create minimal frontmatter from what's available: `title` from filename (dehyphenate, title-case), `date_ingested` from file modification date (via Bash `date -r [file] +%Y-%m-%d`), `source: unknown (manual drop)`, `extraction_method: manual-drop`.
 - Prepend the frontmatter to the file using Edit.
-- Add the file to `.atlas/hashes.json` with its current hash.
+- Recompute the file's hash after the prepend and update its entry in the Phase 1 hash map (the prepend changed the content, so the earlier hash is stale). Do NOT write `.atlas/hashes.json` here — hash persistence happens exclusively in Phase 5, after the source has actually been compiled. Writing it earlier breaks retry: if this compile fails, a stored hash makes the next incremental run skip the file forever (the invariant ingest.md Phase 3 documents).
 - Log to output: "Detected [N] manually added files without metadata. Added minimal frontmatter."
 
 **For full compile:**
@@ -97,7 +99,7 @@ Handle directly without agents. The context cost is minimal:
 
 ## Standard Compile Path
 
-**Full compile cleanup:** If this is a full compile (not incremental), delete all files in `wiki/concepts/`, `wiki/summaries/`, and `wiki/indexes/` before launching agents. Reset `.atlas/concepts.json` to `{}`. Preserve `wiki/reports/`, `wiki/lint/`, `wiki/slides/`, `wiki/images/`, and `wiki/INDEX.md`. This prevents stale pages from sources that were removed since the last compile.
+**Full compile cleanup:** If this is a full compile (not incremental), first record which summaries in `wiki/summaries/` carry `exempt_from_raw_hash: true` in their frontmatter (these are hand-set exemptions that must survive the rebuild — pass the list of exempt source slugs into Agent 2's prompt). Then delete all files in `wiki/concepts/`, `wiki/summaries/`, and `wiki/indexes/`. Reset `.atlas/concepts.json` to `{}`. Preserve `wiki/reports/`, `wiki/lint/`, `wiki/slides/`, `wiki/images/`, and `wiki/INDEX.md`. This prevents stale pages from sources that were removed since the last compile.
 
 **IMPORTANT: Context Window Protection.** Never read raw source files in the main conversation context. ALL reading and processing of raw sources happens inside subagents. The main context only manages agent orchestration and receives structured summaries in return.
 
@@ -211,7 +213,7 @@ TASK:
 For each raw source, create a summary page at wiki/summaries/[source-slug].md
 
 Each summary page must contain (in this order):
-- YAML frontmatter block at the very top, fenced by `---` lines. Required fields: `title` (source title), `created` (YYYY-MM-DD), `last_updated` (YYYY-MM-DD), `concept_count` (integer count of concept pages this source contributed to), `status` (one of: draft, reviewed, review_pending). Optional fields if known from the raw source's own frontmatter: `author`, `date_published`, `source_url`, `date_ingested`. For new pages: created=today, last_updated=today, status=reviewed. For updates: preserve created, set last_updated=today, recompute concept_count.
+- YAML frontmatter block at the very top, fenced by `---` lines. Required fields: `title` (source title), `created` (YYYY-MM-DD), `last_updated` (YYYY-MM-DD), `concept_count` (integer count of concept pages this source contributed to), `status` (one of: draft, reviewed, review_pending). Optional fields if known from the raw source's own frontmatter: `author`, `date_published`, `source_url`, `date_ingested`. One more optional field, `exempt_from_raw_hash: true`, is set ONLY by the user by hand (it marks summaries whose raw source is expected to change without invalidating the summary, so lint skips drift checks on them). Never set it yourself. When updating an existing summary, preserve the field if present. If the orchestrator's prompt lists exempt source slugs (full compiles regenerate summaries from scratch), re-apply the flag to those summaries. For new pages: created=today, last_updated=today, status=reviewed. For updates: preserve created, set last_updated=today, recompute concept_count.
 - Title as H1
 - 3-5 sentence summary of what this source covers and its main argument
 - "Concepts Contributed To" section: bulleted list linking to actual concept pages in wiki/concepts/ using relative paths. Match concept names against .atlas/concepts.json aliases if the exact name doesn't match a filename.
@@ -242,7 +244,7 @@ TASK:
 
 ## Structure of each sub-index (wiki/indexes/[category-slug].md):
 
-```
+~~~
 # [Category Name]
 
 Part of: [Subject] Knowledge Base
@@ -257,11 +259,11 @@ Concepts in this category: [N]
 
 [List raw sources whose concepts fall in this category:]
 - [Source Title](../summaries/source-slug.md) | [type] | [date if known]
-```
+~~~
 
 ## Structure of INDEX.md (top-level, kept small):
 
-```
+~~~
 # [Subject] Knowledge Base
 
 Last compiled: [today's date]
@@ -278,7 +280,7 @@ Total categories: [N]
 
 [List any files in wiki/reports/, most recent first:]
 - [Report Title](reports/report-slug.md) | [date]
-```
+~~~
 
 The top-level INDEX.md must stay small (under 60 lines total). All detailed concept
 listings live in sub-indexes. This two-tier structure ensures the LLM can always read
@@ -315,7 +317,7 @@ Tell the user before starting: "Large compile: [N] sources split into [M] batche
 After all agents finish:
 1. Count files in `wiki/concepts/` and `wiki/summaries/`
 2. Verify `.atlas/concepts.json` has entries (not an empty `{}`)
-3. If any agent reported errors, produced no output, or created zero files: warn the user: "Compile partially failed. [N] concept pages and [M] summaries were created, but agents reported errors. Run `/atlas compile` again for a full rebuild." Do NOT update `last_compiled` in KB.md. This ensures incremental compile will retry.
+3. If any agent reported errors, produced no output, or created zero files: warn the user: "Compile partially failed. [N] concept pages and [M] summaries were created, but agents reported errors. Run `/atlas compile` again for a full rebuild." Then STOP: skip Phases 5 and 6 entirely. In particular do NOT write `.atlas/hashes.json` — retry works because the failed sources' hashes stay unstored or stale, so the next incremental run re-includes them. (`last_compiled` does not drive inclusion; hashes do. Leaving KB.md untouched is a side effect of skipping Phase 5, not the retry mechanism.)
 4. If all agents succeeded, proceed to Phase 5.
 
 ## Phase 5: Update Metadata
@@ -327,7 +329,7 @@ After all agents finish:
    - Increment `compile_count`
    - Increment `compiles_since_lint`
 
-2. Update `.atlas/hashes.json`: for incremental compiles, merge the current hash map from Phase 1 (which already has all hashes) into the stored file. For full compiles, replace the entire file with the current hash map. This avoids recomputing hashes that were already computed in Phase 1. After merge or replace, remove any entries whose files no longer exist in `raw/` (pruning deleted sources).
+2. Update `.atlas/hashes.json`: for incremental compiles, merge the Phase 1 hash map (including any entries recomputed after manual-drop frontmatter prepends) into the stored file. For full compiles, compute current hashes for ALL raw files NOW (same single batch `shasum -a 256` command as Phase 1's incremental block — full mode does not compute hashes in Phase 1) and replace the entire file with that map. After merge or replace, remove any entries whose files no longer exist in `raw/` (pruning deleted sources).
 
 3. **Write a per-run compile manifest** to `.atlas/compile-runs/[YYYY-MM-DDTHHMM].json` (create `.atlas/compile-runs/` if it doesn't exist). The manifest records what changed in this run so downstream tools — specifically lint's Report Health Auditor — can determine the change set without re-deriving it.
 
@@ -345,7 +347,7 @@ After all agents finish:
 Field semantics:
 - `compile_started` / `compile_completed`: ISO 8601 UTC timestamps. Lint's Agent 6 normalizes any date-only or epoch values to ISO 8601 UTC at read time, but write them as ISO 8601 UTC for forward compatibility.
 - `incremental`: boolean — true for `compile --incremental`, false for full rebuild.
-- `created`: concept slugs (filename without `.md`) for pages NEW in this compile (the agents wrote a `wiki/concepts/[slug].md` that didn't exist when this compile started). Derived from comparing the post-Phase-3 contents of `wiki/concepts/` against the pre-compile slug list.
+- `created`: concept slugs (filename without `.md`) for pages NEW in this compile (the agents wrote a `wiki/concepts/[slug].md` that didn't exist when this compile started). Derived from comparing the post-compile contents of `wiki/concepts/` against the pre-compile slug list snapshotted in Phase 1 step 7.
 - `updated`: concept slugs whose pages existed before this compile and were edited by the agents. Derived from the same diff.
 - `deleted`: concept slugs whose pages existed before this compile but no longer exist after (rare; happens only on full compiles where a source was removed and produced no output).
 
@@ -358,7 +360,7 @@ The manifest is advisory state. Compile does not read its own past manifests; on
 Check if the KB root is inside a git repository by using Glob for `.git/` at the KB root (e.g., Glob pattern `.git` with `path` set to the KB root, or Glob `[KB root]/.git/HEAD`). Using Glob avoids running `git rev-parse`, which is not in the default allow-list and would prompt the user on every compile.
 
 If yes:
-1. Stage wiki changes: `git -C [KB root] add wiki/ KB.md .atlas/compile-runs/`
+1. Stage changes: `git -C [KB root] add raw/ wiki/ KB.md .atlas/compile-runs/ .atlas/concepts.json`. Staging `raw/` keeps the ground-truth sources versioned alongside the wiki pages that cite them (tightly coupled, so one commit is correct). If adding the `.atlas/` paths fails because `.atlas/` is gitignored in this KB, re-run the add without them and proceed (mention it in the output).
 2. Commit: `git -C [KB root] commit -m "atlas: [full|incremental] compile - [N] concepts, [M] summaries"`
 3. If the commit fails (nothing to commit, hook failure, etc.), warn the user but do not treat it as a compile failure.
 
