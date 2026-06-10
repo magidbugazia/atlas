@@ -4,7 +4,7 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 
 **Prerequisite:** Phase 0 (auto-detect knowledge base) must have already run from SKILL.md before this file is loaded. If it has not, STOP and return to SKILL.md.
 
-**Invocation:** `/atlas verify` (default scope: pending) or `/atlas verify <concept-slug>` or `/atlas verify recent [N]`
+**Invocation:** `/atlas verify` (default scope: pending) or `/atlas verify <concept-slug>`
 
 ## Why this command exists
 
@@ -18,7 +18,6 @@ Parse what follows `verify`:
 
 - **No argument (default, scope `pending`):** Glob `wiki/concepts/*.md`, parse each page's YAML frontmatter, collect every page with `status: review_pending`.
 - **`<concept-slug>`:** the single page `wiki/concepts/<slug>.md`. If it does not exist, check `.atlas/concepts.json` aliases for a match; if still nothing, tell the user and STOP. A page in any status may be verified explicitly (re-verifying a `reviewed` page is allowed; it refreshes the `revision_note`).
-- **`recent [N]`:** read the last N compile manifests from `.atlas/compile-runs/` (default N=3, by filename timestamp). Scope is the union of their `created` and `updated` slug lists, deduplicated, restricted to pages that still exist.
 
 If the scope is empty: tell the user "Nothing to verify. No concept pages are review_pending." and STOP.
 
@@ -99,7 +98,7 @@ Process each page by verdict:
 ```
 ## Verify Complete
 
-Scope: [pending | slug | recent N] — [N] pages checked, [C] claims spot-checked
+Scope: [pending | slug] — [N] pages checked, [C] claims spot-checked
 
 Cleared to reviewed: [N] pages
 Minor fixes applied: [M] (user-approved)

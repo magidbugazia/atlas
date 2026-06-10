@@ -208,86 +208,38 @@ If every concept has adequate coverage, report "Alias coverage healthy — no ga
 
 **Agent 6: Report Health Auditor**
 ```
-You are auditing the freshness of saved query reports against recent compile activity. A report becomes stale-by-content when the wiki has materially changed since the report was synthesized — either a cited concept page was flagged for human review, or a new concept page now exists that the report's body discusses without linking to. The report's links still resolve; the prose is what's behind. Your job is to surface candidates for re-synthesis. You do NOT edit anything.
+You are auditing the freshness of saved query reports. A report is a synthesis built from cited concept pages at one point in time. It is stale-by-content exactly when an ingredient changed after the dish was cooked: a cited concept page's content was updated after the report was last written, or the cited page no longer exists. The report's links still resolve; the prose is what's behind. Your job is to surface candidates for re-synthesis. You do NOT edit anything.
 
 KB root: [path]
 (PATH RESOLUTION: Every relative KB path below — `wiki/...`, `raw/...`, `.atlas/...`, `KB.md`, `INDEX.md` — is anchored to KB root above. For every Read/Glob/Edit/Bash tool call, prefix the path with `[KB root]/`. Do not use bare relative paths against your CWD; your CWD may not equal KB root.)
 
-INPUTS TO READ:
-1. Glob `wiki/reports/*.md` for all saved reports. If the directory is empty or has zero reports, output `{"reports_audited": 0, "flagged": [], "summary": "No saved reports — nothing to audit."}` and stop.
-2. Glob `.atlas/compile-runs/*.json` for compile manifests. Determine in-scope manifests using `KB.md`'s `last_linted` field, applying this three-state rule:
-   - **Field missing entirely** (key not in YAML): treat as "never linted" — include the most recent 10 manifests by filename ordering.
-   - **Field present but value is null, empty string, or `"never"`**: same as missing.
-   - **Field present with a date or timestamp value**: include any manifest whose `compile_completed` is strictly greater than `last_linted` after timestamp normalization (see Timestamp Handling below).
-
-   If `.atlas/compile-runs/` is empty or missing entirely, output `{"reports_audited": <count>, "flagged": [], "summary": "No compile manifests found — Agent 6 has no change set to compare against."}` and stop.
-
-   For each manifest file in scope, attempt to parse as JSON. If parsing fails (corrupted file, partial write, manual edit gone wrong), log a warning to the agent's output (`{"warning": "Skipping corrupted manifest", "file": "<path>"}`), skip that file, and continue with the rest. If ALL in-scope manifests fail to parse, output `{"reports_audited": <count>, "flagged": [], "summary": "All in-scope compile manifests are corrupted or unreadable. Investigate `.atlas/compile-runs/`."}` and stop.
-
-3. Read `.atlas/concepts.json` for the concept registry (display_name + aliases per slug). If this file is missing or unreadable, output `{"reports_audited": <count>, "flagged": [], "summary": "Concept registry .atlas/concepts.json is missing — Agent 6 cannot resolve aliases. Run /atlas compile to regenerate."}` and stop.
-
-**Timestamp handling.** Before any timestamp comparison, normalize all values to ISO 8601 UTC strings:
-- A date-only value like `2026-04-28` normalizes to `2026-04-28T00:00:00Z`.
-- A full ISO 8601 timestamp passes through unchanged.
-- A Unix epoch integer (rare; only from manual manifest backfill) converts via `datetime.utcfromtimestamp()` then formats as ISO 8601.
-- Anything else is treated as unparseable — log a warning and skip the affected manifest entry.
-
-After normalization, comparisons can be done as lexicographic string comparisons (which work correctly for ISO 8601 UTC strings of consistent length).
-
-⚠️ **Manifest stability.** Do not manually edit, delete, or back-date files in `.atlas/compile-runs/`. The change-window logic depends on `compile_completed` timestamps being monotonic and untampered. The corruption-handling rules above keep Agent 6 from crashing on bad manifests, but Agent 6 cannot detect deliberate tampering — a manually back-dated manifest will silently shift the change window. Treat `.atlas/compile-runs/` as append-only machine state, like `.atlas/hashes.json`.
-
 ALGORITHM:
 
-**Step 1: Aggregate the change set across the in-scope manifests.**
-- `created_slugs` = union of every `created` array across in-scope manifests (after corruption-skipping).
-- Earliest `compile_started` timestamp across the in-scope manifests = `change_window_start`. Latest `compile_completed` timestamp = `change_window_end`.
-- If the in-scope set is empty after filtering (e.g., `last_linted` is recent and no new compiles have happened), output `{"reports_audited": <count>, "flagged": [], "summary": "No compile activity since last lint — nothing to audit."}` and stop.
+**Step 1: Inventory.** Glob `wiki/reports/*.md` for all saved reports. If the directory is empty or has zero reports, output `{"reports_audited": 0, "flagged": [], "summary": "No saved reports — nothing to audit."}` and stop. Audit a maximum of 100 reports per run; if more exist, prioritize the most recent 100 by `last_updated` (lexicographic filename order as the final tiebreaker when the field is missing).
 
-**Note on `review_pending`.** Agent 6 does NOT use the manifest's `review_pending_now` field for the cascade arm. `review_pending` is a CURRENT state on each concept page's frontmatter, not a per-compile event — a concept can be in `review_pending` because of a compile two months ago, with no related entry in any in-scope manifest. The cascade arm reads concept frontmatter directly (Step 3 below). The manifest's optional `review_pending_now` field, if present, is informational only.
+**Note on `review_pending`.** A cited concept's `status` is NOT a staleness trigger. A concept sitting in `review_pending` whose content has not been edited does not stale the reports citing it: confirmation is not change. When `/atlas verify` clears a clean concept it bumps nothing and no reports flag; when verify applies a MINOR-FIX (or compile merges new material), the concept's `last_updated` bumps and the citing reports flag correctly. The only signals this agent reads are existence and `last_updated`.
 
-**Step 2: Build the new-concept candidate-alias list (Guard-rail 1: alias quality bar).**
-For each slug in `created_slugs`, look up its `display_name` and `aliases` in `.atlas/concepts.json`. For each candidate phrase (display_name and each alias), apply the filter:
-- ACCEPT if the phrase has 2+ whitespace-separated tokens (e.g., "human in the loop", "durable execution", "agent multi-tenancy").
-- ACCEPT if the phrase is a hyphenated compound with 2+ semantic parts (e.g., "human-in-the-loop", "agent-multi-tenancy", "cron-for-agents").
-- ACCEPT if the phrase is an acronym of 4+ characters and is not a common English word (e.g., "HITL", "RBAC"). Reject 2-3 char acronyms ("AI", "ML") because of high collision rates with prose.
-- REJECT if the phrase is a single common noun appearing in this stoplist: `memory`, `middleware`, `cron`, `webhook`, `runtime`, `harness`, `sandbox`, `evaluation`, `tracing`, `observability`, `multi-tenant`, `agent`, `interrupt`, `checkpoint`, `tool`, `loop`, `state`, `cache`, `pipeline`, `chain`. (These collide with general prose usage.)
-
-If a created concept's only matching candidates all get rejected, that concept does not contribute to the new-concept arm. Note this inline as "skipped: only generic-noun aliases" so the user can see why the concept isn't surfacing matches.
-
-**Step 3: For each report, run the two arms.**
+**Step 2: Check each report against its cited concepts.**
 For each `wiki/reports/[slug].md`:
 1. Parse the YAML frontmatter to extract `title`, `last_updated`, `concepts_consulted`, `status`, and the existing `revision_note` if any.
 2. **Legacy fallback.** If the report has no YAML frontmatter (legacy reports written before the YAML conversion), fall back to:
    - `title`: the H1 line (first `# ` line).
-   - `last_updated`: file modification time via Bash (`date -r [path] +%Y-%m-%dT%H:%M:%SZ` or equivalent).
+   - `last_updated`: file modification time via Bash (`date -r [path] +%Y-%m-%d`).
    - `concepts_consulted`: parse the body for a `## Concepts consulted:` or `Concepts consulted:` line; the value may be inline-comma-separated or a bulleted list. If absent, treat as an empty list.
    - `status`: treat as missing (not `reviewed`, not `review_pending`, just absent).
    - `revision_note`: absent.
    This matches Agent 4's legacy-handling pattern.
-3. Read the body (everything after the frontmatter close, or the entire file if no frontmatter).
-4. Normalize `last_updated` to ISO 8601 UTC per the Timestamp Handling rule above.
+3. If `concepts_consulted` is missing or empty, skip the report (no citations to check).
+4. For each entry in `concepts_consulted`, derive the cited concept slug (the filename without `.md`) and check `wiki/concepts/[slug].md`:
+   - **Concept page does NOT exist** (deleted in a full compile, or the citation was always wrong): flag the report with reason `{cited_slug: <slug>, evidence: "cited concept page does not exist (deleted or never created)"}`. The report's synthesis cites a now-missing concept — re-synthesis is appropriate.
+   - **Concept page exists**: read its frontmatter `last_updated`. If the concept's `last_updated` is strictly greater than the report's `last_updated` (both are `YYYY-MM-DD` date strings; compare lexicographically), flag the report with reason `{cited_slug: <slug>, concept_last_updated: <date>, evidence: "cited concept content changed after this report was last written"}`. If either field is missing or unparseable, skip the pair and record it under `skipped_pairs`. Same-day ties do not flag: a report written or refreshed the same day a concept changed already saw the change.
 
-**Cascade arm.**
-- If `concepts_consulted` is missing or empty, skip the cascade arm for this report (no citations to check). Proceed to the new-concept arm.
-- For each entry in `concepts_consulted`, derive the cited concept slug (the filename without `.md`).
-- Check whether `wiki/concepts/[slug].md` exists.
-  - **If the concept page does NOT exist** (concept was deleted in a full compile, or the citation was always wrong): flag the report with reason `{arm: "cascade", cited_slug: <slug>, evidence: "cited concept page does not exist (deleted or never created)"}`. The report's synthesis cites a now-missing concept — re-synthesis is appropriate.
-  - **If the concept page exists**: read its YAML frontmatter and extract the `status` field. If `status` equals `review_pending`, flag the report with reason `{arm: "cascade", cited_slug: <slug>, evidence: "cited concept page is currently in review_pending"}`. Note: this checks the CURRENT state on the concept page, not the manifest's per-event signal. A concept that became `review_pending` weeks ago and hasn't been resolved still triggers the cascade arm today.
+**Step 3: Structure output.**
+A report flagged for multiple cited concepts is one entry with all reasons listed. Output structure:
 
-**New-concept body-grep arm.**
-- Apply Guard-rail 2: skip this arm if `report.last_updated >= change_window_start` (strict less-than required for this arm to fire). Both values are normalized ISO 8601 UTC strings (per Timestamp Handling above), so the comparison is well-defined. A report that was written or refreshed during or after the compile window has already incorporated the new state.
-- For each accepted candidate alias from Step 2, search the report body case-insensitively. Use word-boundary regex with extra care around hyphens: standard `\b` treats hyphens as boundaries, which usually does what you want (`\bcron\b` matches `cron-for-agents` but not `chronological`), but for multi-word phrases like `cron for agents`, match the literal phrase `\bcron for agents\b` rather than building a per-word disjunction.
-- For each match, capture the matched line and a quoted excerpt (one full sentence containing the match, or 80 chars on each side if the sentence is unclear).
-- If any match found, flag the report. Cite each new-concept slug whose alias matched, with the evidence quote.
-
-**Step 4: Deduplicate and structure output.**
-A report flagged by both arms is one entry with both `cascade` and `new_concept` reasons listed. Output structure:
-
-```
+~~~
 {
   "reports_audited": <int>,
-  "manifests_in_scope": <int>,
-  "change_window": {"start": "<iso>", "end": "<iso>"},
   "flagged": [
     {
       "report_path": "wiki/reports/<slug>.md",
@@ -295,22 +247,17 @@ A report flagged by both arms is one entry with both `cascade` and `new_concept`
       "report_last_updated": "<YYYY-MM-DD>",
       "report_current_status": "<reviewed|draft|review_pending>",
       "flag_reasons": [
-        {"arm": "cascade", "cited_slug": "<concept-slug>", "evidence": "concept page status is review_pending"},
-        {"arm": "new_concept", "cited_slug": "<new-concept-slug>", "matched_alias": "<phrase>", "evidence_line": <int>, "evidence_quote": "<one sentence>"}
+        {"cited_slug": "<concept-slug>", "concept_last_updated": "<YYYY-MM-DD or null>", "evidence": "<one of the two evidence strings from Step 2>"}
       ]
     }
   ],
-  "skipped_concepts": [
-    {"slug": "<concept-slug>", "reason": "only generic-noun aliases"}
+  "skipped_pairs": [
+    {"report": "<report-slug>", "cited_slug": "<concept-slug>", "reason": "missing or unparseable last_updated"}
   ]
 }
-```
+~~~
 
-If no reports are flagged: output the same JSON envelope with `flagged: []` plus a `summary` field set to `"All reports are current with respect to recent compile changes."` Phase 2 renders this summary verbatim in the markdown report.
-
-SCOPE LIMITS:
-- Maximum 100 reports audited per run. If more exist, prioritize the most recent 100 by normalized `last_updated`. If `last_updated` is missing on a legacy report (and the file mtime fallback also fails for some reason), use lexicographic filename ordering as the final tiebreaker — deterministic, reproducible across runs.
-- For very large change sets (more than 50 created concepts), de-duplicate the candidate-alias list (not the slug list — Step 1's union already deduped slugs) before building greps. If two concepts share an accepted alias, grep for the alias once and attribute matches to whichever concept claimed it first; flag both concepts in the resulting `flag_reasons` if their aliases overlap.
+If no reports are flagged: output the same JSON envelope with `flagged: []` plus a `summary` field set to `"All reports are current — no cited concept changed after its reports were last written."` Phase 2 renders this summary verbatim in the markdown report.
 
 You are advisory only. Do NOT edit any reports. The user (or Phase 3 Part B's auto-fix step) will decide what to do.
 ```
@@ -318,8 +265,6 @@ You are advisory only. Do NOT edit any reports. The user (or Phase 3 Part B's au
 ## Phase 2: Consolidate and Save
 
 After the agents return (5 if `wiki/reports/` was empty, 6 otherwise), merge their findings into a report. Write the report to `wiki/lint/lint-YYYY-MM-DD.md` (create `wiki/lint/` if it doesn't exist) AND display it in the terminal.
-
-**Note on first run after upgrade.** Agent 6 (Report Health Auditor) requires per-compile manifests at `.atlas/compile-runs/*.json` to compute "what changed since the last lint." If you upgrade atlas to a version that emits manifests, no manifests exist yet from prior compiles. Agent 6 will report `"No compile manifests found — Agent 6 has no change set to compare against."` This is not an error — Agent 6 has nothing to audit until the next compile writes its first manifest. After that, Agent 6 begins working normally on subsequent lints. If you want to backfill a missing manifest for a compile that already happened, write `.atlas/compile-runs/[compile-date].json` by hand with the slugs from the compile's terminal output (`created`, `updated` arrays) — the schema is documented in `compile.md` Phase 5.
 
 If a lint report with the same date already exists, overwrite it (re-running lint on the same day replaces the previous run).
 
@@ -363,6 +308,19 @@ These pages have the most inbound links from other concept pages. Errors on hub 
 
 ### Minor
 [Backlink asymmetry, stale summaries, formatting inconsistencies]
+
+---
+
+## Review Queue
+
+[From Agent 1's frontmatter health check: every concept page with `status: review_pending` and how long it has held that status.]
+
+- `wiki/concepts/[slug].md` — review_pending since [date or "unknown"]
+
+To resolve flagged **concept pages**: run `/atlas verify pending` (spot-checks each against its raw sources, auto-clears the clean ones, surfaces real drift).
+To resolve flagged **reports** (see Stale-by-Content Reports below): re-run `/atlas query "[the report's H1]"` — re-synthesis against the current wiki is the refresh.
+
+[If no pages are review_pending: "Review queue empty — no concept pages awaiting human review."]
 
 ---
 
@@ -460,37 +418,20 @@ Notes: [what differs between them, if anything meaningful]
 
 ## Stale-by-Content Reports
 
-[From Agent 6. Reports whose synthesis predates relevant concept-page changes since the last lint. Advisory; auto-fix bumps frontmatter status to review_pending if the user opts in (Phase 3 Part B).]
+[From Agent 6. A report is stale when a concept it cites was content-updated after the report was last written, or no longer exists. Advisory; auto-fix bumps frontmatter status to review_pending if the user opts in (Phase 3 Part B).]
 
-Reports audited: [N]. Manifests in scope: [N] (change window: [start] → [end]). Flagged: [N].
+Reports audited: [N]. Flagged: [N].
 
 [If no reports are flagged:]
-All reports are current with respect to recent compile changes.
+All reports are current — no cited concept changed after its reports were last written.
 
-[Otherwise, render the two arm sections in order — cascade first because it's the higher-precision signal:]
-
-### Reports flagged via cascade (cited concept page now in review_pending)
-
-These reports cite a concept page that compile flagged for human review. The report's synthesis is built on a claim the wiki itself wants re-checked.
+[Otherwise, one entry per flagged report:]
 
 - `wiki/reports/[slug].md` — "[H1]"
-  - Cites: `[cited-concept-slug]` (status: review_pending)
   - Last updated: [YYYY-MM-DD]
+  - [Per flag reason, one line:] Cites `[cited-concept-slug]` — [updated [concept_last_updated], after this report | page no longer exists]
 
-### Reports flagged via new-concept discoverability
-
-These reports describe topics that now have dedicated concept pages, but predate those concept pages. A re-run via `/atlas query "[H1]"` would pull in the new concept page as a citation.
-
-- `wiki/reports/[slug].md` — "[H1]"
-  - Mentions: "[matched alias phrase]" (line [N]: "[evidence quote]")
-  - Should now cite: `[new-concept-slug]` (created [YYYY-MM-DD])
-  - Last updated: [YYYY-MM-DD]
-
-### Skipped concepts (only generic-noun aliases)
-
-[If any concepts in the change set have no Guard-rail-1-passing aliases, list them so the user knows they're not contributing matches:]
-
-- `[concept-slug]`: only generic-noun aliases. Add a multi-word alias to `.atlas/concepts.json` if you want this concept to participate in the discoverability arm.
+[If any pairs were skipped for missing dates, list them briefly so the gap is visible.]
 
 To refresh a flagged report, copy its H1 and run `/atlas query "[H1]"` — query matches the question against each report's `title` frontmatter (normalized) and reuses the existing slug on match, so the report file is overwritten in place (preserves `generated`, bumps `last_updated`, resolves `review_pending` if set).
 ```
@@ -521,7 +462,7 @@ If the user accepts Offer 1:
 If the user accepts Offer 2:
 - For each report in Agent 6's `flagged` list, use the Edit tool to update its YAML frontmatter:
   - Set `status: review_pending`.
-  - Add or replace the `revision_note` field with: `"auto-flagged by lint [YYYY-MM-DD] — [reason]"`. Build the reason from the flag_reasons array, e.g., `"cited concept human-in-the-loop now exists"` (new-concept arm) or `"cited concept memory-systems is in review_pending"` (cascade arm). If both arms fired, list both reasons separated by `; `.
+  - Add or replace the `revision_note` field with: `"auto-flagged by lint [YYYY-MM-DD] — [reason]"`. Build the reason from the flag_reasons array, e.g., `"cited concept memory-systems updated 2026-06-01, after this report's last_updated 2026-05-15"` or `"cited concept human-in-the-loop no longer exists"`. If multiple cited concepts fired, list the reasons separated by `; `.
   - Do NOT touch `generated`, `last_updated`, `concepts_consulted`, or the report body. Only `status` and `revision_note` change.
 - Skip any report whose `status` is already `review_pending` — no edit needed (the lint flag and the existing status agree).
 - If a report's frontmatter has a prior `revision_note` from a non-lint source, prepend the lint note rather than overwriting (e.g., `"auto-flagged by lint 2026-04-29 — ...; previous: <prior note>"`). Frontmatter `revision_note` is a single-line field, so concatenation is fine.

@@ -13,8 +13,6 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 3. Read `wiki/INDEX.md` to know what the wiki currently contains (if it exists).
 4. Read `.atlas/concepts.json` for the concept registry (if it exists).
 5. Read `KB.md` for `last_compiled` date.
-6. Record the compile start timestamp (ISO 8601 UTC, via Bash `date -u +%Y-%m-%dT%H:%M:%SZ`). Phase 5's manifest writes it as `compile_started`.
-7. Snapshot the pre-compile slug list: the set of filenames currently in `wiki/concepts/` (Glob, or empty if the directory doesn't exist). Phase 5's manifest derives `created`/`updated`/`deleted` from this baseline. This snapshot MUST happen here, in both modes — in a full compile the cleanup step deletes those pages before agents run, so there is nothing left to snapshot later.
 
 **For `--incremental` (hash-based change detection):**
 - Read `.atlas/hashes.json` for stored hashes
@@ -334,36 +332,14 @@ After all agents finish:
 
 2. Update `.atlas/hashes.json`: for incremental compiles, merge the Phase 1 hash map (including any entries recomputed after manual-drop frontmatter prepends) into the stored file. For full compiles, compute current hashes for ALL raw files NOW (same single batch `shasum -a 256` command as Phase 1's incremental block — full mode does not compute hashes in Phase 1) and replace the entire file with that map. After merge or replace, remove any entries whose files no longer exist in `raw/` (pruning deleted sources).
 
-3. **Write a per-run compile manifest** to `.atlas/compile-runs/[YYYY-MM-DDTHHMM].json` (create `.atlas/compile-runs/` if it doesn't exist). The manifest records what changed in this run so downstream tools — specifically lint's Report Health Auditor — can determine the change set without re-deriving it.
-
-```json
-{
-  "compile_started": "[ISO 8601 UTC timestamp from Phase 1]",
-  "compile_completed": "[ISO 8601 UTC timestamp at this step]",
-  "incremental": true,
-  "created": ["[concept-slug-1]", "[concept-slug-2]"],
-  "updated": ["[concept-slug-3]"],
-  "deleted": ["[concept-slug-4]"]
-}
-```
-
-Field semantics:
-- `compile_started` / `compile_completed`: ISO 8601 UTC timestamps. Lint's Agent 6 normalizes any date-only or epoch values to ISO 8601 UTC at read time, but write them as ISO 8601 UTC for forward compatibility.
-- `incremental`: boolean — true for `compile --incremental`, false for full rebuild.
-- `created`: concept slugs (filename without `.md`) for pages NEW in this compile (the agents wrote a `wiki/concepts/[slug].md` that didn't exist when this compile started). Derived from comparing the post-compile contents of `wiki/concepts/` against the pre-compile slug list snapshotted in Phase 1 step 7.
-- `updated`: concept slugs whose pages existed before this compile and were edited by the agents. Derived from the same diff.
-- `deleted`: concept slugs whose pages existed before this compile but no longer exist after (rare; happens only on full compiles where a source was removed and produced no output).
-
-The manifest is advisory state. Compile does not read its own past manifests; only lint consumes them. If writing the manifest fails (disk full, permission issue), warn the user but do not treat it as a compile failure — the rest of Phase 5 has already succeeded.
-
-**Why the manifest does NOT track `review_pending_now`.** Earlier drafts of this schema included a `review_pending_now` field listing concepts that compile flagged for review during this run. That field is omitted because it captures the wrong signal: lint's cascade arm needs to know which concepts are CURRENTLY in `review_pending` (a state on each concept page's frontmatter), not which ones happened to enter that state during this compile. A concept flagged `review_pending` two compiles ago and not yet resolved must still trigger the cascade arm, but would not appear in the most recent manifest's per-event field. Lint Agent 6 reads concept frontmatter directly to get the authoritative current state.
+(Per-run compile manifests in `.atlas/compile-runs/` were removed 2026-06-10. Their only consumer was lint's Report Health Auditor, which now derives report staleness directly from frontmatter `last_updated` comparison — no change-set bookkeeping needed. An existing `.atlas/compile-runs/` directory in an older KB is dead state and can be deleted.)
 
 ## Phase 6: Git Commit
 
 Check if the KB root is inside a git repository by using Glob for `.git/` at the KB root (e.g., Glob pattern `.git` with `path` set to the KB root, or Glob `[KB root]/.git/HEAD`). Using Glob avoids running `git rev-parse`, which is not in the default allow-list and would prompt the user on every compile.
 
 If yes:
-1. Stage changes: `git -C [KB root] add raw/ wiki/ KB.md .atlas/compile-runs/ .atlas/concepts.json`. Staging `raw/` keeps the ground-truth sources versioned alongside the wiki pages that cite them (tightly coupled, so one commit is correct). If adding the `.atlas/` paths fails because `.atlas/` is gitignored in this KB, re-run the add without them and proceed (mention it in the output).
+1. Stage changes: `git -C [KB root] add raw/ wiki/ KB.md .atlas/concepts.json`. Staging `raw/` keeps the ground-truth sources versioned alongside the wiki pages that cite them (tightly coupled, so one commit is correct). If adding the `.atlas/` path fails because `.atlas/` is gitignored in this KB, re-run the add without it and proceed (mention it in the output).
 2. Commit: `git -C [KB root] commit -m "atlas: [full|incremental] compile - [N] concepts, [M] summaries"`
 3. If the commit fails (nothing to commit, hook failure, etc.), warn the user but do not treat it as a compile failure.
 

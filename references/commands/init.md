@@ -18,8 +18,7 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 ├── .atlas/
 │   ├── hashes.json
 │   ├── concepts.json
-│   ├── splits/
-│   └── compile-runs/             # Per-compile manifests (created on first compile, used by lint Agent 6 for stale-by-content report detection)
+│   └── splits/
 ├── raw/
 │   ├── articles/
 │   ├── papers/
@@ -121,7 +120,7 @@ Output:
 ## Knowledge Base Initialized: [Subject]
 
 Directory: [path]
-Structure: .atlas/ (hashes, concepts, splits, compile-runs), raw/ (6 subdirectories), wiki/ (7 subdirectories + INDEX.md)
+Structure: .atlas/ (hashes, concepts, splits), raw/ (6 subdirectories), wiki/ (7 subdirectories + INDEX.md)
 
 Next steps:
 1. Add raw material to `raw/` (articles, papers, notes, images)
