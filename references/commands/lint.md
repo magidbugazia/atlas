@@ -492,7 +492,7 @@ These reports describe topics that now have dedicated concept pages, but predate
 
 - `[concept-slug]`: only generic-noun aliases. Add a multi-word alias to `.atlas/concepts.json` if you want this concept to participate in the discoverability arm.
 
-To refresh a flagged report, copy its H1 and run `/atlas query "[H1]"` — the slug is deterministic so the existing report file is overwritten in place (preserves `generated`, bumps `last_updated`, resolves `review_pending` if set).
+To refresh a flagged report, copy its H1 and run `/atlas query "[H1]"` — query matches the question against each report's `title` frontmatter (normalized) and reuses the existing slug on match, so the report file is overwritten in place (preserves `generated`, bumps `last_updated`, resolves `review_pending` if set).
 ```
 
 ## Phase 3: Auto-Fix and Git Commit
