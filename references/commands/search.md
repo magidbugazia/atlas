@@ -16,7 +16,7 @@ No agents needed. Quick full-text lookup with alias expansion.
 
 ## Phase 2: Search
 
-1. For each search term (original + expanded aliases), Grep `wiki/concepts/` and `wiki/reports/` with context (3 lines before and after each match).
+1. For each search term (original + expanded aliases), Grep `wiki/concepts/`, `wiki/summaries/`, and `wiki/reports/` with context (1 line before and after each match, matching the output template below).
 2. Deduplicate results by file. Group matches by file path.
 3. Cap at 20 matching files. If more, show the first 20 and tell the user how many were omitted.
 
@@ -24,7 +24,7 @@ No agents needed. Quick full-text lookup with alias expansion.
 
 Show matched lines verbatim from grep output -- do not summarize, paraphrase, or synthesize. The user reads the raw matches and decides what to dig into.
 
-Use plain file paths (not markdown links) since the primary rendering context is a terminal. Always include the parent directory (`wiki/concepts/` or `wiki/reports/`) so the user can navigate directly.
+Use plain file paths (not markdown links) since the primary rendering context is a terminal. Always include the parent directory (`wiki/concepts/`, `wiki/summaries/`, or `wiki/reports/`) so the user can navigate directly.
 
 ```
 ## Search Results: "[original query]"

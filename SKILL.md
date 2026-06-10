@@ -146,7 +146,7 @@ If `references/commands/search.md` does not exist, STOP and tell the user: "Atla
 ## Rules for All Commands
 
 1. **Always run Phase 0** (auto-detect KB) before any command except `init`.
-2. **Raw is append-only.** Never delete, modify, or overwrite files in `raw/`. The raw directory is the ground truth. Exception: one-time metadata frontmatter additions on files detected as manual drops (no existing frontmatter).
+2. **Raw is append-only.** Never delete, modify, or overwrite files in `raw/`. The raw directory is the ground truth. Two exceptions: (a) one-time metadata frontmatter additions on files detected as manual drops (no existing frontmatter); (b) the user-approved overwrite in ingest's URL dedup check (re-ingesting an updated URL over its existing copy — the changed hash correctly triggers recompile).
 3. **Wiki is the LLM's domain.** The user reads wiki files but should rarely edit them directly. If the user has manually edited a wiki file, respect their changes during subsequent compiles. Merge, don't overwrite.
 4. **Relative links only.** All links in wiki files must use relative paths (`../concepts/foo.md`, not absolute paths). This makes the KB portable across machines.
 5. **Explicit file lists for agents.** When spawning agents, always include the complete list of files they need to process. Do not make agents discover files. Give them the list.
@@ -162,3 +162,4 @@ If `references/commands/search.md` does not exist, STOP and tell the user: "Atla
 14. **Dedup on ingest.** Before adding a new raw source, check if the same URL or filename already exists in `raw/`. Warn the user and ask how to proceed rather than silently creating duplicates.
 15. **Git integration.** After any operation that modifies `wiki/`, check if the KB root is in a git repo. If yes, stage and commit the changes with a descriptive message. If the commit fails or the directory is not a git repo, skip silently. Never force-push or amend.
 16. **Hash-based change detection.** Incremental compiles use content hashes (stored in `.atlas/hashes.json`), not file modification dates. This prevents reprocessing files that were touched but not changed, and catches files that were modified in place.
+17. **Tool fallback.** Wherever these instructions say Grep or Glob, those names mean capabilities, not specific tools. If the harness does not expose a Grep or Glob tool, substitute a python3 call via Bash (`glob.glob('[KB root]/wiki/concepts/*.md')` for Glob, an `re` scan over file contents for Grep; write longer scripts to `/tmp` with the Write tool, no heredocs). Do not substitute shell `grep`/`find` — they may be blocked by user hooks. Agent prompts inherit this rule.

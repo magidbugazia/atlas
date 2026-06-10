@@ -9,7 +9,7 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 ## Phase 1: Create Structure
 
 1. Parse the subject name from arguments
-2. Check if `KB.md` already exists in the current directory. If yes: warn the user and ask if they want to reinitialize (this would NOT delete existing files, just recreate missing directories and update KB.md)
+2. Check if `KB.md` already exists in the current directory OR any parent directory up to 3 levels (the same walk Phase 0 performs). If found here: warn the user and ask if they want to reinitialize (this would NOT delete existing files, just recreate missing directories and update KB.md). If found in a parent: warn that initializing here would nest a KB inside the existing one at [path], which Phase 0 later resolves ambiguously, and ask before proceeding.
 3. Create the directory structure:
 
 ```
@@ -49,6 +49,7 @@ scope: [user's scope description from step 4]
 created: [today's date]
 last_compiled: never
 last_linted: never
+last_lint_health: never
 raw_count: 0
 wiki_count: 0
 compile_count: 0
@@ -110,6 +111,8 @@ The concept registry is a JSON object where each key is a concept slug and each 
   }
 }
 ```
+
+9. Apply SKILL.md Rule 15: check whether the target directory is inside a git repo (Glob for `.git/` as compile Phase 6 does). If yes, stage the created files (`git add KB.md wiki/` plus `.atlas/` unless gitignored) and commit with message `atlas: init [subject] KB`. If not a repo or the commit fails, skip silently.
 
 ## Phase 2: Confirm
 
