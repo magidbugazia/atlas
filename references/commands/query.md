@@ -38,7 +38,7 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
    1. Read its YAML frontmatter.
    2. Preserve `generated` from the existing frontmatter — this date is immutable per `query.md` field semantics.
    3. Set `last_updated` to today's date.
-   4. If the previous `status` was `review_pending`, this re-run resolves it: set `status: reviewed` and add a `revision_note` line summarizing the trigger (e.g., `revision_note: "re-synthesized 2026-04-29 against current KB state — resolves auto-flag from lint 2026-04-28"`). If the previous `status` was already `reviewed`, leave it as `reviewed` and add a `revision_note` summarizing what prompted the re-run if known (otherwise omit).
+   4. Leave `status` as `reviewed` (report status is set at creation and never changes; staleness is informational, surfaced by lint, never a status). Add a `revision_note` summarizing what prompted the re-run if known (e.g., `revision_note: "re-synthesized 2026-06-10 — cited concepts had changed since the prior run"`); otherwise omit.
    5. Recompute `concepts_consulted` from the new synthesis pass. The list may differ from the prior run's list — that's expected when the wiki has grown.
    6. Overwrite the file. The body is fully replaced with the new synthesis; do not attempt to merge with the prior body.
 
@@ -46,7 +46,7 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 
 4. Write the answer as a markdown file at `wiki/reports/[slug].md`. Reports use YAML frontmatter as the canonical metadata block (matching concept and summary pages). Do NOT add a redundant header-style block (`Generated:` / `Concepts consulted:` lines) below the H1 — that is the legacy format. Do NOT add a trailing `## Sources Consulted` section — `concepts_consulted` in frontmatter is the canonical record, and report bodies already cite each concept inline as clickable links throughout the prose, so a footer list adds no navigation value and creates a drift-prone second source of truth.
 
-The frontmatter template below shows the **fresh-report shape** (when step 3's existing-file check returned no match). On a re-run (step 1 matched a title, or step 3 found an existing file), use the override values that step 3 established: preserve `generated` from the prior frontmatter, set `last_updated` to today, set `status` per step 3.4 (resolve `review_pending → reviewed` if applicable), and add a `revision_note`. The slug, concepts_consulted, title, and body are recomputed in either case.
+The frontmatter template below shows the **fresh-report shape** (when step 3's existing-file check returned no match). On a re-run (step 1 matched a title, or step 3 found an existing file), use the override values that step 3 established: preserve `generated` from the prior frontmatter, set `last_updated` to today, leave `status: reviewed`, and add a `revision_note` when the trigger is known. The slug, concepts_consulted, title, and body are recomputed in either case.
 
 ```markdown
 ---
@@ -76,11 +76,11 @@ The set of links cited inline must match `concepts_consulted` in frontmatter.]
 - `slug`: the filename without `.md`. Must match the file's actual name on disk.
 - `generated`: the date the report was first written. Never changes after creation.
 - `last_updated`: the date of the most recent edit. Equals `generated` on creation. Bump whenever the report body is materially revised.
-- `status`: `reviewed` for fresh atlas-generated reports (you wrote them, you stand behind them). Use `draft` only when the report is incomplete and the user has been told. Use `review_pending` only when a later edit introduced material that warrants a re-read.
+- `status`: `reviewed`, set at creation and never changed afterward (atlas wrote the report and stands behind it as of its dates). Use `draft` only when the report is incomplete and the user has been told. Reports do NOT participate in the `review_pending` lifecycle — that flag belongs to concept pages only. A report's currency is informational, carried by its dates and surfaced by lint's Stale-by-Content section.
 - `concepts_consulted`: machine-readable list of relative paths to every concept page actually read. This is the canonical record of what the report drew from. Lint Agent 4 (Report Overlap Detector) reads this directly for cluster Jaccard analysis. Every concept-page link cited inline in the body should appear here; every entry here should appear at least once as an inline citation in the body.
 - Optional fields: `revision_note` (one-line summary of the most recent edit, when `last_updated > generated`), `parent_report` (filename of a parent report when this is a satellite/recall card).
 
-**When updating an existing report** (re-run via re-invoking `/atlas query` with the same question, or via a future `--rerun` flag alias): the operational logic for preserving `generated`, bumping `last_updated`, resolving `review_pending` → `reviewed`, and adding a `revision_note` is in step 3 above (with the title-lookup re-run path entered through step 1). Do not duplicate metadata in the body.
+**When updating an existing report** (re-run via re-invoking `/atlas query` with the same question, or via a future `--rerun` flag alias): the operational logic for preserving `generated`, bumping `last_updated`, and adding a `revision_note` is in step 3 above (with the title-lookup re-run path entered through step 1). Do not duplicate metadata in the body.
 
 5. Display the report content to the user directly in the terminal output.
 
@@ -92,7 +92,7 @@ After displaying the report, confirm the save and surface the title so the user 
 Report [saved|refreshed] at `wiki/reports/[slug].md`.
 Title: "[exact title string from frontmatter]"
 
-To refresh this report later, run `/atlas query "[exact title string]"` — atlas matches on title and overwrites the existing file in place (preserves `generated`, bumps `last_updated`, resolves `review_pending` if set).
+To refresh this report later, run `/atlas query "[exact title string]"` — atlas matches on title and overwrites the existing file in place (preserves `generated`, bumps `last_updated`).
 
 Should I extract new concepts or enrich existing concept pages from this report? (This feeds your exploration back into the knowledge base.)
 ```

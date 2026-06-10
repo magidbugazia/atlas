@@ -317,8 +317,7 @@ These pages have the most inbound links from other concept pages. Errors on hub 
 
 - `wiki/concepts/[slug].md` — review_pending since [date or "unknown"]
 
-To resolve flagged **concept pages**: run `/atlas verify pending` (spot-checks each against its raw sources, auto-clears the clean ones, surfaces real drift).
-To resolve flagged **reports** (see Stale-by-Content Reports below): re-run `/atlas query "[the report's H1]"` — re-synthesis against the current wiki is the refresh.
+To resolve flagged **concept pages**: run `/atlas verify pending` (spot-checks each against its raw sources, auto-clears the clean ones, surfaces real drift). Concept pages are the only thing that carries a review flag; stale reports (see Stale-by-Content Reports below) are informational, and each entry there includes its own ready-to-paste Refresh command.
 
 [If no pages are review_pending: "Review queue empty — no concept pages awaiting human review."]
 
@@ -418,22 +417,20 @@ Notes: [what differs between them, if anything meaningful]
 
 ## Stale-by-Content Reports
 
-[From Agent 6. A report is stale when a concept it cites was content-updated after the report was last written, or no longer exists. Advisory; auto-fix bumps frontmatter status to review_pending if the user opts in (Phase 3 Part B).]
+[From Agent 6. A report is stale when a concept it cites was content-updated after the report was last written, or no longer exists. INFORMATIONAL ONLY: reports carry no review flag, nothing is mutated, and nothing needs clearing. Refresh a report whenever you want it current by pasting its Refresh command.]
 
-Reports audited: [N]. Flagged: [N].
+Reports audited: [N]. Stale: [N].
 
-[If no reports are flagged:]
+[If no reports are stale:]
 All reports are current — no cited concept changed after its reports were last written.
 
-[Otherwise, one entry per flagged report:]
+[Otherwise, one entry per stale report. The Refresh line MUST quote the exact `title` string from the report's frontmatter (Agent 6 returns it as `report_title`) — query matches on normalized title and reuses the existing slug, so the paste re-runs and overwrites THE SAME report in place (preserves `generated`, bumps `last_updated`); a paraphrased title would create a duplicate report instead:]
 
-- `wiki/reports/[slug].md` — "[H1]"
-  - Last updated: [YYYY-MM-DD]
-  - [Per flag reason, one line:] Cites `[cited-concept-slug]` — [updated [concept_last_updated], after this report | page no longer exists]
+- `wiki/reports/[slug].md` — stale ([N] cited concepts changed after it)
+  - [Per flag reason, one line:] `[cited-concept-slug]` — [updated [concept_last_updated] | page no longer exists]
+  - Refresh: `/atlas query "[exact title string from frontmatter]"`
 
 [If any pairs were skipped for missing dates, list them briefly so the gap is visible.]
-
-To refresh a flagged report, copy its H1 and run `/atlas query "[H1]"` — query matches the question against each report's `title` frontmatter (normalized) and reuses the existing slug on match, so the report file is overwritten in place (preserves `generated`, bumps `last_updated`, resolves `review_pending` if set).
 ```
 
 ## Phase 3: Auto-Fix and Git Commit
@@ -445,11 +442,11 @@ Phase 3 runs in two parts. Part A always runs and records that lint was performe
 2. Git commit if in a repo (detect by Globbing for `.git/` at the KB root, not by running `git rev-parse`): `git -C [KB root] add wiki/lint/ KB.md` then `git -C [KB root] commit -m "atlas: lint run - [HEALTH] - [YYYY-MM-DD]"`. This commit contains only the lint report and the KB.md metadata update.
 
 **Part B: Apply auto-fixes (opt-in).**
-After Part A, present two opt-in offers separately so the user can accept one without the other (use AskUserQuestion with two questions, or two sequential yes/no prompts):
+After Part A, present one opt-in offer:
 
-**Offer 1 — Structural auto-fixes:** "Should I auto-fix the simple structural issues? (broken links, backlink asymmetry, orphan index entries, registry drift, structural alias additions)"
+**Structural auto-fixes:** "Should I auto-fix the simple structural issues? (broken links, backlink asymmetry, orphan index entries, registry drift, structural alias additions)"
 
-If the user accepts Offer 1:
+If the user accepts:
 1. Fix broken links by removing or correcting them
 2. Add missing backlinks
 3. Add orphan pages to INDEX.md
@@ -457,20 +454,12 @@ If the user accepts Offer 1:
 5. Sync `.atlas/concepts.json` with actual concept files (add missing entries, remove entries with no file)
 6. Apply structural alias additions from Agent 5 (acronyms, plurals, hyphen/space swaps only — the items in the "Proposed additions (auto-fixable, structural)" lists). Merge into each concept's `aliases` array in `.atlas/concepts.json`, preserving existing aliases. Do NOT apply paraphrase suggestions — those require explicit user approval because a phrase in the page body can refer to the concept itself, a related concept, or a metaphor, and the agent cannot always tell which.
 
-**Offer 2 — Mark stale reports for review:** Only present this offer if Agent 6 flagged at least one report. Ask: "Should I mark the [N] flagged reports as `status: review_pending` so they show up in the review queue? (This is a frontmatter-only change; report bodies are untouched. You can resolve each by re-running `/atlas query` with the report's H1.)"
+(Stale reports are never mutated. Lint's only writes are the lint report itself, KB.md metadata, and the opt-in structural fixes above. Report staleness lives exclusively in the lint report's Stale-by-Content section, each entry with its own Refresh command.)
 
-If the user accepts Offer 2:
-- For each report in Agent 6's `flagged` list, use the Edit tool to update its YAML frontmatter:
-  - Set `status: review_pending`.
-  - Add or replace the `revision_note` field with: `"auto-flagged by lint [YYYY-MM-DD] — [reason]"`. Build the reason from the flag_reasons array, e.g., `"cited concept memory-systems updated 2026-06-01, after this report's last_updated 2026-05-15"` or `"cited concept human-in-the-loop no longer exists"`. If multiple cited concepts fired, list the reasons separated by `; `.
-  - Do NOT touch `generated`, `last_updated`, `concepts_consulted`, or the report body. Only `status` and `revision_note` change.
-- Skip any report whose `status` is already `review_pending` — no edit needed (the lint flag and the existing status agree).
-- If a report's frontmatter has a prior `revision_note` from a non-lint source, prepend the lint note rather than overwriting (e.g., `"auto-flagged by lint 2026-04-29 — ...; previous: <prior note>"`). Frontmatter `revision_note` is a single-line field, so concatenation is fine.
-
-**Commit logic.** If either Offer 1 or Offer 2 was accepted (or both):
-1. Stage the affected paths: `git -C [KB root] add wiki/ INDEX.md .atlas/concepts.json`. If only Offer 2 ran, the wiki/reports edits will be picked up by `wiki/`.
-2. Commit: `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`. If only Offer 2 ran, use the message `"atlas: lint - [N] reports flagged stale-by-content for review"` so the commit history distinguishes structural fixes from advisory queue updates.
+**Commit logic.** If the auto-fix offer was accepted:
+1. Stage the affected paths: `git -C [KB root] add wiki/ INDEX.md .atlas/concepts.json`.
+2. Commit: `git -C [KB root] commit -m "atlas: lint fixes - [N] issues resolved"`.
 
 This is a second, independent commit (separate from Part A's lint-report commit) so it can be reverted without losing the lint report itself.
 
-If the user declines both offers, Phase 3 ends after Part A — no second commit is created.
+If the user declines, Phase 3 ends after Part A — no second commit is created.

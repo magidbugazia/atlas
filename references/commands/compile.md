@@ -362,5 +362,9 @@ Concept registry: [N] entries in .atlas/concepts.json
 Index updated: wiki/INDEX.md
 [If git commit succeeded: "Changes committed: [commit hash]"]
 
+[Count concept pages whose frontmatter has `status: review_pending` (Glob `wiki/concepts/*.md`, parse frontmatter — counts older uncleared flags too, not just this run's). If the count is greater than 0:
+"[N] concept page(s) are review_pending (a new source contradicted existing claims or materially shifted a page's framing).
+Run: `/atlas verify pending`"]
+
 [If compiles_since_lint > 3: "Consider running `/atlas lint`. It's been [N] compiles since last health check."]
 ```
