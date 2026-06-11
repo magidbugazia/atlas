@@ -18,6 +18,40 @@ You collect raw sources. Atlas organizes them into concept pages with summaries,
 
 Your wiki lives in `wiki/`. Entry point: `wiki/INDEX.md`. Concept pages: `wiki/concepts/`. The LLM maintains everything — you rarely edit directly. Git auto-commits on every operation, so rollback is cheap.
 
+## The Mental Model (read this once, confusion ends)
+
+Atlas manages two kinds of pages, and only one of them ever asks anything of you.
+
+**Concept pages** (`wiki/concepts/`, one file per idea) are the knowledge. Each carries a `status` in its frontmatter:
+
+- `draft` — compile created it, you haven't personally read it. Purely informational. Ignorable forever.
+- `reviewed` — signed off.
+- `review_pending` — **the only actionable flag in the entire skill.** Compile sets it when a newly ingested source *contradicts* what a page already says, or materially shifts its framing. It means "two of your sources disagree; the synthesis needs a check."
+
+That one flag has one producer, one resolver, and three announcers:
+
+```
+compile  ──sets──▶  review_pending  ──cleared by──▶  /atlas verify pending
+   │                                                       ▲
+   └── compile's output, /atlas status, and lint's ────────┘
+       Review Queue all print this exact command when the queue is non-empty
+```
+
+Verify spawns agents that spot-check each flagged page's claims against the raw sources: clean pages auto-clear, small drifts become corrections you approve, real problems stay flagged with the failing claim quoted. You never have to remember the command — every surface that can see the queue prints it.
+
+**Reports** (`wiki/reports/`, one file per question you asked `/atlas query`) are dated snapshots: cached answers computed from the concept pages at one point in time. **They have no lifecycle.** Nothing flags them, nothing needs clearing. When the wiki grows past a report (a cited concept's `last_updated` becomes newer than the report's), that's not a defect, just age. Lint's Stale-by-Content section lists aged reports, each with a ready-to-paste `Refresh:` command quoting the report's exact title — pasting it re-runs the same report in place (title match reuses the slug; no duplicate is created). Refresh a report when you actually want it current, never as a chore.
+
+**Command tiers** — nine commands sounds like a lot until you see how rarely most run:
+
+| Tier | Commands | Cadence |
+|------|----------|---------|
+| Daily loop | `ingest`, `compile`, `query` | This is the skill. Everything else is upkeep around it. |
+| When prompted | `verify pending` | Only when compile/status/lint tell you the review queue is non-empty (rare: requires sources that genuinely contradict) |
+| Occasional | `lint`, `status` | Checkup and dashboard. Lint every handful of compiles (compile reminds you); status whenever curious |
+| Rare | `search`, `export`, `init` | Quick lookup, HTML rendering, one-time setup |
+
+The whole system in three sentences: *compile builds the wiki and flags real contradictions; verify clears them; reports are dated answers you re-ask when you care.* Every command that discovers work prints the exact command that does the work.
+
 ## Commands
 
 See SKILL.md for full operational details.
@@ -25,12 +59,13 @@ See SKILL.md for full operational details.
 | Command | What it does | Reads | Creates / Updates |
 |---------|-------------|-------|-------------------|
 | `init <subject>` | Scaffold a new KB | nothing | `KB.md`, `.atlas/*`, `raw/` dirs, `wiki/INDEX.md` |
-| `ingest <source>` | Add a file, URL, or directory to raw | source file/URL | `raw/[type]/`, `.atlas/hashes.json`, `KB.md` |
+| `ingest <source>` | Add a file, URL, or directory to raw | source file/URL | `raw/[type]/`, `KB.md` (hashes are written only by compile, after a source is actually processed) |
 | `compile` | Full rebuild of wiki from all raw material | `raw/*`, `.atlas/*` | `wiki/concepts/`, `wiki/summaries/`, `wiki/indexes/`, `wiki/INDEX.md`, `.atlas/concepts.json`, `KB.md` |
 | `compile --incremental` | Rebuild only new/changed sources | `raw/*`, `.atlas/hashes.json` | same as compile, only changed files |
 | `query "question"` | Research answer from wiki | `wiki/INDEX.md`, `wiki/indexes/`, `wiki/concepts/` | `wiki/reports/` |
 | `search "term"` | Full-text search with alias expansion | `.atlas/concepts.json`, `wiki/concepts/`, `wiki/reports/` | nothing (display only) |
-| `lint` | Health check and hallucination audit | all `wiki/` files, `raw/`, `.atlas/concepts.json` | `wiki/lint/lint-YYYY-MM-DD.md`, fixes if approved, `KB.md` |
+| `lint` | Health check and hallucination audit | all `wiki/` files, `raw/`, `.atlas/concepts.json` | `wiki/lint/lint-YYYY-MM-DD.md`, structural fixes if approved, `KB.md` |
+| `verify [pending \| <slug>]` | Spot-check flagged concept pages against raw sources; auto-clear clean ones | flagged `wiki/concepts/` pages, cited `raw/` files | concept frontmatter (`status`, `revision_note`), approved corrections |
 | `status` | Quick stats | `KB.md`, `.atlas/*`, `wiki/INDEX.md` | nothing (display only) |
 | `export <report-slug>` | Render an existing report as an interactive HTML guide via code-fluent | `wiki/reports/<slug>.md`, `KB.md` | `wiki/reports/<slug>-guide.html` |
 
@@ -102,14 +137,10 @@ Here's a trimmed excerpt of `wiki/concepts/retrieval-augmented-generation.md` af
 ```markdown
 ---
 title: Retrieval-Augmented Generation
-slug: retrieval-augmented-generation
-aliases: [RAG, retrieval augmented generation]
-category: llm-patterns
-sources:
-  - raw/articles/lewis-2020-rag-paper.md
-  - raw/articles/pinecone-rag-guide.md
-  - raw/papers/gao-2023-rag-survey.pdf
-last_compiled: 2026-04-14
+created: 2026-03-02
+last_updated: 2026-04-14
+source_count: 3
+status: reviewed
 ---
 
 # Retrieval-Augmented Generation
@@ -142,7 +173,7 @@ or when source attribution matters for the end user.[^3] See also
 [^3]: raw/papers/gao-2023-rag-survey.pdf
 ```
 
-Three things to notice: the frontmatter carries aliases (so `/atlas search "RAG"` finds this page), every factual claim cites back to a raw source file (so the Source Verifier can audit it during lint), and `[[wikilinks]]` connect to other concept pages (which Obsidian renders as a graph).
+Three things to notice: aliases live in `.atlas/concepts.json` (so `/atlas search "RAG"` finds this page), every factual claim cites back to a raw source file (so lint's Source Verifier and `/atlas verify` can audit it), and the frontmatter `status` is the review lifecycle (`draft` → `reviewed`, with `review_pending` set by compile on contradictions and cleared by verify).
 
 ## Pairing with Mentor
 
@@ -246,16 +277,17 @@ If you later audit a wiki claim and suspect compile hallucinated or compressed s
 
 Running `/atlas lint` produces a health report saved to `wiki/lint/lint-YYYY-MM-DD.md`. The report identifies issues, suggests improvements, and includes ready-to-run commands for follow-up. Nothing is lost between sessions.
 
-The lint report has six sections, each with a different follow-up path:
+The lint report's sections, each with a different follow-up path:
 
 | Lint Section | What it finds | How to act on it |
 |-------------|--------------|-----------------|
 | **Issues** | Broken links, orphan pages, contradictions, registry drift | Accept auto-fix when prompted, or fix manually |
+| **Review Queue** | Concept pages in `review_pending` | Run the printed `/atlas verify pending` command |
 | **Source Verification** | Claims that don't match the cited source (hallucination audit) | Edit the concept page to match what the source actually says |
 | **Suggested Connections** | Concept pairs that should cross-link but don't | Add links manually, or wait for next compile |
 | **New Article Candidates** | Topics referenced by many pages but with no page of their own | Run the `/mentor evaluate` command in the report (includes `--context` paths to relevant wiki pages) |
 | **Research Questions** | Gaps the wiki almost answers but doesn't fully cover | Run the `/atlas query` command in the report |
-| **Stale-by-Content Reports** | Reports flagged for review: cited concept now in `review_pending`, OR newly-created concept appears in report body without citation | Accept Phase 3 Part B Offer 2 to bump them to `status: review_pending`, then re-run `/atlas query "<H1>"` on each to refresh in place |
+| **Stale-by-Content Reports** | Reports whose cited concepts changed after they were written (informational only — nothing is flagged) | Paste any entry's `Refresh:` command when you want that report current |
 
 The key design: atlas finds the gaps and prepares the commands. Mentor evaluates whether to fill them. Atlas organizes the result. The user decides what to pursue.
 
@@ -343,6 +375,7 @@ atlas/
         ├── compile.md                # Build wiki (3 sequential agents)
         ├── query.md                  # Hierarchical retrieval
         ├── lint.md                   # Health check (6 parallel agents — 5 if wiki/reports/ is empty)
+        ├── verify.md                 # Spot-check flagged concepts against sources, clear the queue
         ├── status.md                 # Quick stats
         ├── export.md                 # Render a report as an HTML guide via code-fluent
         └── search.md                 # Alias-aware full-text search
