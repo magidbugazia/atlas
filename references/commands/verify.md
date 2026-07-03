@@ -4,11 +4,11 @@ This file is loaded on demand by `~/.claude/skills/atlas/SKILL.md` when the user
 
 **Prerequisite:** Phase 0 (auto-detect knowledge base) must have already run from SKILL.md before this file is loaded. If it has not, STOP and return to SKILL.md.
 
-**Invocation:** `/atlas verify` (default scope: pending) or `/atlas verify <concept-slug>`
+**Invocation:** `/atlas verify` (default scope: all unverified — `review_pending` and `draft`), `/atlas verify pending`, `/atlas verify drafts`, or `/atlas verify <concept-slug>`
 
 ## Why this command exists
 
-Compile flags concept pages `status: review_pending` on genuine contradictions, material framing shifts, and the one-time frontmatter backfill. Concept pages are the only thing in atlas that carries this flag (reports are dated snapshots with no review lifecycle; their currency is informational, surfaced by lint). Lint surfaces pending concepts but never clears them, and compile never flips a concept back. Before this command, clearing was entirely manual, and empirically the flags are high-recall, low-precision (two manual triage passes across ~140 spot-checked claims found zero drift). Verify is the spec-defined clearing path: spot-check each pending page's claims against its raw sources, auto-clear the clean ones, and leave only genuine problems flagged.
+Compile flags concept pages `status: review_pending` on genuine contradictions, material framing shifts, and the one-time frontmatter backfill. Compile ALSO creates every brand-new concept page as `status: draft` — machine-written, never vetted. Both `review_pending` and `draft` are unverified states, and verify's spot-check resolves them identically, so verify's default scope sweeps both: compiling new sources and then running `/atlas verify` is the normal path to move fresh pages to `reviewed` without naming each slug. (Before this scope was widened, `draft` pages fell outside the default sweep and could only be cleared per-slug, so a compile-heavy KB accumulated unverified drafts with no bulk clearing path.) Concept pages are the only thing in atlas that carries these flags (reports are dated snapshots with no review lifecycle; their currency is informational, surfaced by lint). Lint surfaces unverified concepts but never clears them, and compile never flips a concept back. Empirically the flags are high-recall, low-precision (two manual triage passes across ~140 spot-checked claims found zero drift). Verify is the spec-defined clearing path: spot-check each unverified page's claims against its raw sources, auto-clear the clean ones, and leave only genuine problems flagged.
 
 Verify resolves; lint surfaces. Verify does not duplicate lint Agent 3 (the per-source Source Verifier sampling the whole wiki) — it reuses Agent 3's claim taxonomy and exemption rule, scoped to the pending queue, and unlike lint it writes the resolution.
 
@@ -16,10 +16,12 @@ Verify resolves; lint surfaces. Verify does not duplicate lint Agent 3 (the per-
 
 Parse what follows `verify`:
 
-- **No argument (default, scope `pending`):** Glob `wiki/concepts/*.md`, parse each page's YAML frontmatter, collect every page with `status: review_pending`.
-- **`<concept-slug>`:** the single page `wiki/concepts/<slug>.md`. If it does not exist, check `.atlas/concepts.json` aliases for a match; if still nothing, tell the user and STOP. A page in any status may be verified explicitly (re-verifying a `reviewed` page is allowed; it refreshes the `revision_note`).
+- **No argument (default, scope `unverified`):** Glob `wiki/concepts/*.md`, parse each page's YAML frontmatter, collect every page whose `status` is `review_pending` OR `draft`. Both are unverified states that verify resolves identically: `review_pending` is a previously-reviewed page a later compile disturbed; `draft` is a newly compiled page never vetted. Sweeping both by default means a fresh compile's new pages clear on the next `/atlas verify` without the user naming each slug.
+- **`pending`:** only pages with `status: review_pending` (the narrower "flagged for re-check" queue).
+- **`drafts`:** only pages with `status: draft` (newly compiled, never vetted).
+- **`<concept-slug>`:** the single page `wiki/concepts/<slug>.md`. If it does not exist, check `.atlas/concepts.json` aliases for a match; if still nothing, tell the user and STOP. A page in any status may be verified explicitly (re-verifying a `reviewed` page is allowed; it refreshes the `revision_note`). (`pending` and `drafts` are reserved scope keywords, not slugs; a concept page must not use either as its slug.)
 
-If the scope is empty: tell the user "Nothing to verify. No concept pages are review_pending." and STOP.
+If the scope is empty: tell the user "Nothing to verify. No concept pages are review_pending or draft." and STOP.
 
 Tell the user the scope before spawning: "[N] pages to verify: [slugs]. Spawning [M] verifier agents."
 

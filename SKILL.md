@@ -1,7 +1,7 @@
 ---
 name: atlas
 description: Knowledge base builder - collects raw material, compiles an interconnected wiki, maintains indexes, answers queries, and lints for consistency. Pair with /mentor for resource evaluation and industry alignment.
-argument-hint: "init <subject> | ingest <URL | path> | compile [--incremental] | query \"question\" | search \"term\" | lint | verify [pending | <slug>] | status | export <report-slug>"
+argument-hint: "init <subject> | ingest <URL | path> | compile [--incremental] | query \"question\" | search \"term\" | lint | verify [pending | drafts | <slug>] | status | export <report-slug>"
 allowed-tools: Read Write Edit Grep Glob Bash Task WebFetch WebSearch AskUserQuestion
 disable-model-invocation: true
 ---
@@ -22,7 +22,7 @@ You do NOT evaluate whether a source is worth including (that is `/mentor evalua
 | `/atlas compile --incremental` | Update wiki with only new/changed raw material |
 | `/atlas query "question"` | Research question against wiki, write answer to `wiki/reports/` |
 | `/atlas lint` | Health check: contradictions, broken links, missing pages, connections |
-| `/atlas verify [pending \| <slug>]` | Spot-check `review_pending` concept pages against raw sources; auto-clear clean ones, surface real drift |
+| `/atlas verify [pending \| drafts \| <slug>]` | Spot-check unverified concept pages (`review_pending` + `draft`, the default) against raw sources; auto-clear clean ones, surface real drift |
 | `/atlas status` | Stats: article counts, last compile date, health indicators |
 | `/atlas export <report-slug>` | Render an existing report from `wiki/reports/` as an interactive HTML guide via code-fluent |
 | `/atlas search "term"` | Search wiki full text with alias expansion, return matches |
@@ -115,9 +115,9 @@ If `references/commands/lint.md` does not exist, STOP and tell the user: "Atlas 
 
 ## Command: Verify
 
-**Invocation:** `/atlas verify` (default scope: pending) or `/atlas verify <concept-slug>`
+**Invocation:** `/atlas verify` (default scope: all unverified — `review_pending` and `draft`), `/atlas verify pending`, `/atlas verify drafts`, or `/atlas verify <concept-slug>`
 
-**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/verify.md` now, then follow the instructions in that file.** It contains the complete operational logic for the verify command: Phase 1 (Determine Scope: all pending pages, or one slug), Phase 2 (parallel verifier agents spot-checking claims against raw sources using lint's claim taxonomy), Phase 3 (Apply Results: auto-clear REVIEWED-OK, opt-in MINOR-FIX corrections, NEEDS-REWRITE stays flagged), Phase 4 (Git Commit), Phase 5 (Output). Verify resolves `review_pending` on concept pages; lint only surfaces it.
+**Do not summarize or paraphrase. Call the Read tool on `~/.claude/skills/atlas/references/commands/verify.md` now, then follow the instructions in that file.** It contains the complete operational logic for the verify command: Phase 1 (Determine Scope: all unverified pages by default — `review_pending` and `draft`; or `pending`, `drafts`, or one slug), Phase 2 (parallel verifier agents spot-checking claims against raw sources using lint's claim taxonomy), Phase 3 (Apply Results: auto-clear REVIEWED-OK, opt-in MINOR-FIX corrections, NEEDS-REWRITE stays flagged), Phase 4 (Git Commit), Phase 5 (Output). Verify resolves `review_pending` and `draft` on concept pages; lint only surfaces them.
 
 If `references/commands/verify.md` does not exist, STOP and tell the user: "Atlas command file not found at ~/.claude/skills/atlas/references/commands/verify.md. The skill is partially installed. Cannot proceed."
 
