@@ -353,7 +353,12 @@ If no (not a git repo): skip silently.
 [Full/Incremental] compile of [Subject] knowledge base.
 
 New concept pages created: [N]
+[If N > 0, enumerate every created page on its own line, one per slug:
+"  - [slug]"
+List the actual slugs, not a placeholder. A bare count without the roster is not acceptable — the user needs to know WHAT was created, not just how many.]
 Existing concept pages updated: [N]
+[If N > 0, enumerate every updated page on its own line, with a 3-6 word note on what the new source added:
+"  - [slug] — [what changed, e.g. 'added shared-expert + sparsity-ratio detail']"]
 New source summaries created: [N]
 Total concepts: [N]
 Total sources: [N]
@@ -361,6 +366,10 @@ Concept registry: [N] entries in .atlas/concepts.json
 
 Index updated: wiki/INDEX.md
 [If git commit succeeded: "Changes committed: [commit hash]"]
+
+[Count concept pages whose frontmatter has `status: draft` (Glob `wiki/concepts/*.md`, parse frontmatter — every newly created page is `draft` until verified; counts older uncleared drafts too, not just this run's). If the count is greater than 0:
+"[N] concept page(s) are draft (newly compiled, not yet verified against their raw sources).
+Run: `/atlas verify drafts`"]
 
 [Count concept pages whose frontmatter has `status: review_pending` (Glob `wiki/concepts/*.md`, parse frontmatter — counts older uncleared flags too, not just this run's). If the count is greater than 0:
 "[N] concept page(s) are review_pending (a new source contradicted existing claims or materially shifted a page's framing).
